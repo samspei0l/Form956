@@ -1,0 +1,95 @@
+# Example form config -- copy and edit to register a new PDF.
+#
+# The engine reads one YAML per form from the forms/ directory.
+# Anything starting with `_` (like this file) is skipped, so you can
+# keep it as a working reference.
+
+id: example              # URL slug: /forms/<id>
+title: "Example form"    # shown in the form picker and at the top of /forms/<id>
+pdf: pdfs/example.pdf    # path relative to the project root
+
+# Optional. If omitted, the engine counts pages from the PDF.
+pages: 4
+
+# Each entry maps one semantic app field to one (or more) PDF widgets.
+# The engine validates the YAML when it loads, so a typo here will
+# surface immediately at app startup, not when a user fills the form.
+fields:
+
+  # ----------------------------------------------------------- text
+  # A single text field. `app` is the name the rest of your app uses.
+  # `pdf` is the widget name in the PDF's AcroForm layer.
+  - app: first_name
+    pdf: "firstName"
+    type: text
+    label: "First name"
+    required: true                # server-side: 400 if blank
+    # format hint for the UI input. Allowed: date, email, tel, number.
+    # The PDF is still written as plain text -- the format is a UI cue.
+    format: text
+
+  # ----------------------------------------------------------- radio
+  # A group of checkboxes that share a field name in the PDF (one
+  # widget per on-state, e.g. "title.mr", "title.mrs"). The user picks
+  # one; the engine ticks the chosen widget and unticks the others.
+  - app: title
+    pdf: "title"
+    type: radio
+    label: "Title"
+    options:
+      mr: "Mr"
+      mrs: "Mrs"
+      miss: "Miss"
+      ms: "Ms"
+      other: "Other"
+
+  # If the radio is a single on-state checkbox (e.g. "Not yet
+  # decided (IAAAS)" tickbox), omit `options`. The engine will pick
+  # the only on-state from the PDF.
+  - app: not_yet_decided
+    pdf: "iaaas"
+    type: radio
+    label: "Not yet decided"
+
+  # ----------------------------------------------------------- group
+  # A list of dicts that the engine fans out across suffixed widgets.
+  # Use this when the PDF has widgets named `cc.name fam`,
+  # `cc.name fam 2`, `cc.name fam 3`, ... -- the engine treats the
+  # bare name as index 0 and "N+1" as index N.
+  - app: people
+    type: group
+    label: "Person(s) on this form"
+    pdf_base: "cc.name"           # widget name base; suffixes are " 2", " 3", ...
+    max_items: 6                  # app can send at most 6 entries
+    item:
+      - app: family
+        pdf: "cc.name fam"
+        type: text
+        label: "Family name"
+        required: true
+      - app: given
+        pdf: "cc.name giv"
+        type: text
+        label: "Given names"
+
+  # ----------------------------------------------------------- check_all
+  # A boolean that ticks every widget whose name starts with `pdf` and
+  # is followed by zero or more digits. Use for "I agree" declarations
+  # where the form has 4 tick-boxes that all get the same answer.
+  - app: agreed
+    pdf: "declaration"
+    type: check_all
+    label: "I agree to the declaration above"
+
+# Optional visual sections for the UI. Each section is a <h2> with the
+# listed fields below it. The dynamic form renderer in
+# templates/form.html uses these to group the inputs. If you omit
+# `sections:`, the renderer just lists every field in declaration
+# order with no grouping.
+sections:
+  - title: "Identity"
+    fields: [title, first_name]
+  - title: "Person(s) on this form"
+    fields: [people]
+  - title: "Declaration"
+    fields: [agreed, not_yet_decided]

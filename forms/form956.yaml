@@ -1,0 +1,415 @@
+# Form 956 — Appointment of a migration agent (Australian immigration).
+# Source PDF: pdfs/956.pdf
+# Drafted from `python -m pdfform inspect pdfs/956.pdf`; labels filled in
+# by hand to match the printed form.
+
+id: form956
+title: "Form 956 — Appointment of a registered migration agent"
+pdf: pdfs/956.pdf
+pages: 6
+
+# App-side field names (left) -> PDF widget names (right). The app's
+# HTML form will use the `app` names; the engine writes to the `pdf`
+# widgets. This indirection means the app stays decoupled from the
+# PDF's internal naming.
+
+fields:
+
+  # ============================================================
+  # Page 3 — Migration agent details
+  # ============================================================
+
+  - app: agent_title
+    pdf: "mg.title"
+    type: radio
+    label: "Title"
+    options: { mr: "Mr", mrs: "Mrs", miss: "Miss", ms: "Ms" }
+
+  - app: agent_title_other
+    pdf: "mg.title other"
+    type: text
+    label: "Other title"
+
+  - app: is_new_application
+    pdf: "mg.app"
+    type: radio
+    label: "Is this a new application?"
+    options: { "Yes": "Yes", "No": "No" }
+
+  - app: preferred_communication
+    pdf: "mg.comm"
+    type: radio
+    label: "Do you prefer written communication?"
+    options: { "Yes": "Yes", "No": "No" }
+
+  - app: assistance_type
+    pdf: "mg.prov assist"
+    type: radio
+    label: "Type of assistance provided"
+    options:
+      Legal: "Legal practitioner"
+      reg: "Registered migration agent"
+      exampt: "Exempt from registration"
+
+  - app: another_migration_agent
+    pdf: "mg.oth mig"
+    type: radio
+    label: "Another registered migration agent providing assistance?"
+    options: { "Yes": "Yes", "No": "No" }
+
+  - app: exemption_reason
+    pdf: "mg.reason ex"
+    type: radio
+    label: "Reason exempt from registration"
+    options:
+      close: "Close family member"
+      sponsor: "Sponsor"
+      nominator: "Nominator"
+      diplom: "Diplomatic / consular staff"
+      parlia: "Parliamentarian"
+      public: "Public sector official"
+
+  - app: agent_family_name
+    pdf: "mg.name fam"
+    type: text
+    label: "Family name"
+    required: true
+
+  - app: agent_given_names
+    pdf: "mg.name giv"
+    type: text
+    label: "Given names"
+
+  - app: agent_dob
+    pdf: "mg.dob"
+    type: text
+    label: "Date of birth (dd/mm/yyyy)"
+    format: date
+
+  - app: agent_org_name
+    pdf: "mg.org name"
+    type: text
+    label: "Organisation / trading name"
+
+  - app: agent_resadd_str
+    pdf: "mg.resadd str"
+    type: text
+    label: "Residential address — street"
+
+  - app: agent_resadd_sub
+    pdf: "mg.resadd sub"
+    type: text
+    label: "Residential address — suburb/state"
+
+  - app: agent_resadd_cntry
+    pdf: "mg.resadd cntry"
+    type: text
+    label: "Residential address — country"
+
+  - app: agent_resadd_pc
+    pdf: "mg.resadd pc"
+    type: text
+    label: "Residential address — postcode"
+
+  - app: agent_postal_str
+    pdf: "mg.postal str"
+    type: text
+    label: "Postal address — street"
+
+  - app: agent_postal_sub
+    pdf: "mg.postal sub"
+    type: text
+    label: "Postal address — suburb/state"
+
+  - app: agent_postal_cntry
+    pdf: "mg.postal cntry"
+    type: text
+    label: "Postal address — country"
+
+  - app: agent_postal_pc
+    pdf: "mg.postal pc"
+    type: text
+    label: "Postal address — postcode"
+
+  - app: agent_off_ph_cc
+    pdf: "mg.off ph cc"
+    type: text
+    label: "Office phone — country code"
+
+  - app: agent_off_ph_ac
+    pdf: "mg.off ph ac"
+    type: text
+    label: "Office phone — area code"
+
+  - app: agent_off_ph
+    pdf: "mg.off ph"
+    type: text
+    label: "Office phone — number"
+    format: tel
+
+  - app: agent_mob
+    pdf: "mg.mob"
+    type: text
+    label: "Mobile"
+    format: tel
+
+  - app: agent_email
+    pdf: "mg.email"
+    type: text
+    label: "Email"
+    format: email
+
+  - app: agent_marn
+    pdf: "mg.marn"
+    type: text
+    label: "MARN (Migration Agent Registration Number)"
+
+  - app: agent_lpn
+    pdf: "mg.lpn"
+    type: text
+    label: "Legal practitioner number"
+
+  # ============================================================
+  # Page 4 — Person being represented & type of assistance
+  # ============================================================
+
+  - app: client_role
+    pdf: "cc.person rec"
+    type: radio
+    label: "Person being represented"
+    options:
+      visa: "Visa applicant"
+      sponsor: "Sponsor"
+      nom: "Nominator"
+      proposer: "Proposer"
+      holder: "Visa holder"
+      person: "Person"
+
+  - app: assistance_category
+    pdf: "ta.assist"
+    type: radio
+    label: "Type of assistance"
+    options:
+      Application: "New application"
+      Cancellation: "Cancellation / revocation"
+      Specific: "Specific matter"
+
+  - app: not_yet_decided
+    pdf: "ta.not yet"
+    type: radio
+    label: "Not yet decided (IAAAS)"
+
+  - app: also_assisting_another
+    pdf: "ar.also"
+    type: radio
+    label: "Also assisting another person?"
+    options: { "Yes": "Yes", "No": "No" }
+
+  # The 'cc.name fam', 'cc.name fam 2..6', 'cc.name giv', 'cc.name giv 2..6'
+  # widgets are all "person rows" on the form. The bare widget is the
+  # primary client; suffixed widgets are additional people. The app
+  # provides a list of dicts; the engine writes index 0 to the bare
+  # widgets, indices 1..N to the suffixed widgets.
+  - app: people
+    type: group
+    label: "Person(s) on this form"
+    pdf_base: "cc.name"
+    max_items: 6
+    item:
+      - app: family
+        pdf: "cc.name fam"
+        type: text
+        label: "Family name"
+        required: true
+      - app: given
+        pdf: "cc.name giv"
+        type: text
+        label: "Given names"
+
+  - app: client_dob
+    pdf: "cc.dob"
+    type: text
+    label: "Primary client — date of birth (dd/mm/yyyy)"
+    format: date
+
+  - app: client_org_name
+    pdf: "cc.org name"
+    type: text
+    label: "Client — organisation / trading name"
+
+  - app: client_resadd_str
+    pdf: "cc.resadd str"
+    type: text
+    label: "Client — residential street"
+
+  - app: client_resadd_sub
+    pdf: "cc.resadd sub"
+    type: text
+    label: "Client — residential suburb/state"
+
+  - app: client_resadd_cntry
+    pdf: "cc.resadd cntry"
+    type: text
+    label: "Client — residential country"
+
+  - app: client_resadd_pc
+    pdf: "cc.resadd pc"
+    type: text
+    label: "Client — residential postcode"
+
+  - app: client_off_ph_cc
+    pdf: "cc.off ph cc"
+    type: text
+    label: "Client — office phone country code"
+
+  - app: client_off_ph_ac
+    pdf: "cc.off ph ac"
+    type: text
+    label: "Client — office phone area code"
+
+  - app: client_off_ph
+    pdf: "cc.off ph"
+    type: text
+    label: "Client — office phone number"
+    format: tel
+
+  - app: client_mob
+    pdf: "cc.mob"
+    type: text
+    label: "Client — mobile"
+    format: tel
+
+  - app: client_diac_id
+    pdf: "cc.diac id"
+    type: text
+    label: "Client — DIAC / client ID"
+
+  - app: application_type
+    pdf: "ta.type"
+    type: text
+    label: "Application type"
+
+  - app: date_lodged
+    pdf: "ta.lodged"
+    type: text
+    label: "Date lodged (dd/mm/yyyy)"
+    format: date
+
+  # ============================================================
+  # Page 5 — Ending appointment
+  # ============================================================
+
+  - app: also_assisting_in_ending
+    pdf: "mg.also ar"
+    type: radio
+    label: "Also assisting in ending the appointment?"
+    options: { "Yes": "Yes", "No": "No" }
+
+  - app: ending_this_appointment
+    pdf: "mg.ending ar"
+    type: radio
+    label: "Are you ending this appointment?"
+    options: { "Yes": "Yes", "No": "No" }
+
+  - app: communicated_ending
+    pdf: "mg.end comm"
+    type: radio
+    label: "Did you communicate ending the appointment?"
+    options: { "Yes": "Yes", "No": "No" }
+
+  # ============================================================
+  # Page 6 — Declarations
+  # ============================================================
+
+  # 4 migration-agent declaration ticks, all ticked when the app
+  # value is truthy. Covers widget "mg.dec" plus "mg.dec 1..4".
+  - app: agent_declarations_agreed
+    pdf: "mg.dec"
+    type: check_all
+    label: "I, the migration agent, agree to all 4 declaration statements above"
+
+  # 4 client declaration ticks, all ticked when the app value is truthy.
+  - app: client_declarations_agreed
+    pdf: "cc.dec"
+    type: check_all
+    label: "I, the client, agree to all 4 declaration statements above"
+
+  - app: agent_declaration_date
+    pdf: "mg.dec date"
+    type: text
+    label: "Migration agent — date (dd/mm/yyyy)"
+    format: date
+
+  - app: client_declaration_date
+    pdf: "cc.dec date"
+    type: text
+    label: "Client — date (dd/mm/yyyy)"
+    format: date
+
+# Visual grouping in the UI. Every field name listed here must exist
+# in `fields:` above. The dynamic form renderer uses these to draw
+# <section> blocks; if you omit this, the renderer just lists every
+# field in declaration order.
+sections:
+  - title: "Migration agent"
+    fields:
+      - agent_title
+      - agent_title_other
+      - agent_family_name
+      - agent_given_names
+      - agent_dob
+      - agent_org_name
+      - agent_resadd_str
+      - agent_resadd_sub
+      - agent_resadd_cntry
+      - agent_resadd_pc
+      - agent_postal_str
+      - agent_postal_sub
+      - agent_postal_cntry
+      - agent_postal_pc
+      - agent_off_ph_cc
+      - agent_off_ph_ac
+      - agent_off_ph
+      - agent_mob
+      - agent_email
+      - agent_marn
+      - agent_lpn
+      - is_new_application
+      - preferred_communication
+      - assistance_type
+      - another_migration_agent
+      - exemption_reason
+
+  - title: "Client"
+    fields:
+      - client_role
+      - assistance_category
+      - not_yet_decided
+      - also_assisting_another
+      - people
+      - client_dob
+      - client_org_name
+      - client_resadd_str
+      - client_resadd_sub
+      - client_resadd_cntry
+      - client_resadd_pc
+      - client_off_ph_cc
+      - client_off_ph_ac
+      - client_off_ph
+      - client_mob
+      - client_diac_id
+      - application_type
+      - date_lodged
+
+  - title: "Ending the appointment"
+    fields:
+      - also_assisting_in_ending
+      - ending_this_appointment
+      - communicated_ending
+
+  - title: "Declarations"
+    fields:
+      - agent_declarations_agreed
+      - agent_declaration_date
+      - client_declarations_agreed
+      - client_declaration_date

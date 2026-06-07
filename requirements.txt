@@ -1,0 +1,15 @@
+# Production dependencies for the Form 956 service.
+# The Python form engine + Flask HTTP layer.
+#
+# The OCR evaluation path (dots.ocr) is NOT a production dependency;
+# see requirements-ocr.txt for that separate stack.
+
+# --- core ---
+flask==3.0.3
+pymupdf==1.24.10
+pyyaml==6.0.1
+
+# --- production hardening (optional but recommended) ---
+gunicorn==22.0.0
+flask-cors==4.0.1
+flask-limiter==3.8.0

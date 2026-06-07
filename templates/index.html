@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Form picker</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --fg: #1c2024;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --accent-fg: #fff;
+      --border: #d1d5db;
+      --card: #fff;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font: 14px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif;
+      color: var(--fg); background: var(--bg);
+    }
+    .container { max-width: 720px; margin: 0 auto; padding: 32px 24px; }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    h1 + .sub { color: var(--muted); margin-bottom: 24px; }
+    .forms-list { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .form-card {
+      display: block; padding: 16px 20px; background: var(--card);
+      border: 1px solid var(--border); border-radius: 8px;
+      text-decoration: none; color: var(--fg);
+    }
+    .form-card:hover { border-color: var(--accent); }
+    .form-card .title { font-weight: 500; font-size: 15px; }
+    .form-card .meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
+    .empty {
+      padding: 24px; text-align: center; color: var(--muted);
+      background: var(--card); border: 1px dashed var(--border);
+      border-radius: 8px;
+    }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Form picker</h1>
+    <div class="sub">Pick a configured PDF form to fill.</div>
+
+    {% if forms %}
+      <div class="forms-list">
+        {% for f in forms %}
+          <a class="form-card" href="/forms/{{ f.id }}">
+            <div class="title">{{ f.title }}</div>
+            <div class="meta">
+              <code>{{ f.id }}</code> &middot; {{ f.pages }} page{% if f.pages != 1 %}s{% endif %} &middot; {{ f.field_count }} field{% if f.field_count != 1 %}s{% endif %}
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">
+        No forms configured. Drop a YAML file in <code>forms/</code> and
+        restart the app. See <code>forms/_example.yaml</code> for the
+        expected shape.
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>
