@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 from flask import Flask, jsonify, render_template, request, send_file
 
@@ -32,8 +33,18 @@ log = logging.getLogger("app")
 # Flask are same-origin or proxied).
 try:
     from flask_cors import CORS
-    CORS(app, resources={r"/forms/*": {"origins": os.environ.get("CORS_ORIGINS", "*")}},
-         supports_credentials=False)
+    CORS(
+        app,
+        resources={r"/forms/*": {"origins": [
+            re.compile(r"^https://([a-z0-9-]+\.)*lovable\.app$"),
+            "https://pipeline.winzoylegal.com.au",
+            "http://localhost:8080",
+        ]}},
+        methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Request-Id"],
+        expose_headers=["X-Cache-Key", "X-Cache", "X-Request-Id"],
+        max_age=86400,
+    )
 except ImportError:
     log.warning("flask-cors not installed; CORS headers not added (fine in dev).")
 
