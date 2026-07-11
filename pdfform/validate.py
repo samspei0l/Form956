@@ -65,10 +65,9 @@ DATE_FIELDS = frozenset({
     "client_declaration_date",
 })
 
-#: Email fields.
+#: Email fields (must exist in forms/form956.yaml).
 EMAIL_FIELDS = frozenset({
     "agent_email",
-    "client_email",
 })
 
 

@@ -103,6 +103,7 @@ export interface Form956Payload {
   client_off_ph_ac?: string;
   client_off_ph?: string;
   client_mob?: string;
+  /** Legacy overlay-only — stripped by adaptForm956Payload; not on the PDF. */
   client_email?: string;
   client_diac_id?: string;
 
@@ -126,6 +127,75 @@ export interface Form956Payload {
 
   // Catch-all for fields the engine knows about that we haven't typed here.
   [k: string]: unknown;
+}
+
+/**
+ * Map legacy overlay-builder / case-record keys to the engine schema
+ * before POSTing. Safe to call even if the payload is already canonical.
+ */
+export function adaptForm956Payload(
+  raw: Record<string, unknown>,
+): Form956Payload {
+  const out: Record<string, unknown> = { ...raw };
+
+  delete out.client_email;
+
+  const family =
+    (out._client_family as string | undefined) ??
+    (out.client_family_name as string | undefined) ??
+    (out.client_family as string | undefined);
+  const given =
+    (out._client_given as string | undefined) ??
+    (out.client_given_names as string | undefined) ??
+    (out.client_given as string | undefined);
+  delete out._client_family;
+  delete out._client_given;
+  delete out.client_family_name;
+  delete out.client_given_names;
+  delete out.client_family;
+  delete out.client_given;
+
+  if (family || given) {
+    const people = Array.isArray(out.people) ? [...out.people] : [];
+    const row =
+      people[0] && typeof people[0] === 'object'
+        ? { ...(people[0] as Record<string, unknown>) }
+        : {};
+    if (family) row.family = family;
+    if (given) row.given = given;
+    if (people.length) people[0] = row;
+    else people.push(row);
+    out.people = people;
+  }
+
+  if (!out.agent_dob) {
+    for (const k of [
+      'agent_date_of_birth',
+      'agentDateOfBirth',
+      'migration_agent_dob',
+    ] as const) {
+      if (out[k]) {
+        out.agent_dob = out[k];
+        delete out[k];
+        break;
+      }
+    }
+  }
+
+  for (const k of [
+    'agent_resadd_pc',
+    'agent_postal_pc',
+    'client_resadd_pc',
+    'client_postcode',
+  ] as const) {
+    const v = out[k];
+    if (v == null || v === '') continue;
+    const s = String(v).trim();
+    const m = s.match(/\b(\d{4})\b/);
+    out[k] = m ? m[1] : s.replace(/\D/g, '').slice(0, 4) || s;
+  }
+
+  return out as Form956Payload;
 }
 
 export interface GeneratePdfResult {
@@ -175,7 +245,7 @@ export class Form956Service {
    */
   async generatePdf(payload: Form956Payload): Promise<GeneratePdfResult> {
     const url = `${this.baseUrl}/forms/form956/fill`;
-    const body = JSON.stringify(payload);
+    const body = JSON.stringify(adaptForm956Payload(payload));
 
     let lastErr: unknown = null;
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
@@ -308,8 +378,9 @@ export class Form956Service {
 }
 
 // ----- module-level singleton -------------------------------------------
-// Construct once at app boot from VITE_FORM_API_URL. The React app can
-// import this directly; tests can construct their own Form956Service.
+// Production URL. Override per-environment with VITE_FORM_API_URL in .env.
+export const FORM956_API_URL = 'https://form956-production.up.railway.app';
+
 let _default: Form956Service | null = null;
 
 export function getForm956Service(): Form956Service {
@@ -317,10 +388,13 @@ export function getForm956Service(): Form956Service {
   const baseUrl =
     (typeof import.meta !== 'undefined' &&
       (import.meta as { env?: Record<string, string> }).env?.VITE_FORM_API_URL) ||
-    'http://127.0.0.1:5000';
+    FORM956_API_URL;
   _default = new Form956Service(baseUrl);
   return _default;
 }
+
+/** Ready-to-use singleton — import this in Form956Generator.tsx. */
+export const form956Service = getForm956Service();
 
 // ----- Jest test markers -------------------------------------------------
 // (Not run as part of the build — placeholder for where the React
