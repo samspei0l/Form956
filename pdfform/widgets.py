@@ -50,15 +50,46 @@ def set_text(page: pymupdf.Page, name: str, value: str) -> bool:
     return True
 
 
+def _field_value_xref(doc: pymupdf.Document, widget_xref: int) -> int:
+    """Find the xref that owns the field's authoritative ``/V``.
+
+    Radio-style groups (the four ``mg.title`` option boxes, ``mg.app``
+    Yes/No, ...) are stored as a Kids array: each on-screen box is a
+    bare Widget annotation with no ``/FT`` of its own, and the actual
+    field dict (``/FT /Btn``, the shared ``/V``) is the ``/Parent``.
+    Standalone checkboxes (e.g. the ``mg.dec N`` declaration ticks) are
+    merged widget+field objects that carry ``/FT`` directly, so this
+    just returns the widget itself for those. Walking to the wrong
+    object (or never walking at all) leaves the Parent's ``/V`` stale,
+    which is invisible to lenient renderers that paint straight from
+    each Kid's own ``/AS`` (browser preview, MuPDF) but causes
+    spec-strict readers (Acrobat, Preview.app) to treat the field's
+    value as unset/inconsistent and fall back to a different mark.
+    """
+    xref = widget_xref
+    seen: set[int] = set()
+    while xref not in seen:
+        seen.add(xref)
+        if doc.xref_get_key(xref, "FT")[0] != "null":
+            return xref
+        parent = doc.xref_get_key(xref, "Parent")
+        if parent[0] != "xref":
+            return xref
+        xref = int(parent[1].split()[0])
+    return xref
+
+
 def set_checkbox(page: pymupdf.Page, name: str, on_value: str,
                  *, checked: bool) -> bool:
     """Tick or untick the CheckBox widget ``name`` whose on-state is
     ``on_value`` on ``page``.
 
-    Implementation: set ``/AS`` and ``/V`` on the underlying annotation
-    xref rather than going through ``Widget.field_value``. That preserves
-    the form's original export value (``mr``/``mrs``/``Application``/...)
-    instead of normalising to ``Yes``/``Off``.
+    Implementation: set ``/AS`` on the underlying annotation xref rather
+    than going through ``Widget.field_value``. That preserves the form's
+    original export value (``mr``/``mrs``/``Application``/...) instead of
+    normalising to ``Yes``/``Off``. ``/V`` is written to whichever xref
+    actually owns the field (see ``_field_value_xref``) so Acrobat-class
+    readers agree with lenient ones on which option is selected.
 
     Returns True if the widget was found and updated, False otherwise.
     """
@@ -69,10 +100,16 @@ def set_checkbox(page: pymupdf.Page, name: str, on_value: str,
     xref = w.xref
     if checked:
         doc.xref_set_key(xref, "AS", f"/{on_value}")
-        doc.xref_set_key(xref, "V", f"/{on_value}")
+        doc.xref_set_key(_field_value_xref(doc, xref), "V", f"/{on_value}")
     else:
         doc.xref_set_key(xref, "AS", "/Off")
-        doc.xref_set_key(xref, "V", "/Off")
+        # Only clear a field-level V when this widget IS the field (a
+        # standalone checkbox). For radio-group Kids, the sibling that
+        # gets checked=True owns writing the shared Parent's V; clearing
+        # it here too would race against that call depending on
+        # iteration order and could stomp the real selection.
+        if doc.xref_get_key(xref, "FT")[0] != "null":
+            doc.xref_set_key(xref, "V", "/Off")
     return True
 
 
