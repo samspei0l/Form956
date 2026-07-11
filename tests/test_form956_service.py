@@ -72,6 +72,47 @@ def test_form956_schema_loads(form956_engine):
     assert len(schema["fields"]) >= 50  # form 956 has 51 widgets
 
 
+# ---------------------------------------------------------------- adapter
+def test_adapt_legacy_react_payload(form956_engine):
+    from pdfform.adapt_form956 import adapt_form956_payload
+    from pdfform.validate import validate_form956
+
+    legacy = {
+        "agent_family_name": "Smith",
+        "agent_given_names": "Jane",
+        "agent_marn": "1234567",
+        "agent_email": "j@e.com",
+        "client_role": "visa",
+        "application_type": "Skilled visa",
+        "_client_family": "Doe",
+        "_client_given": "John",
+        "client_email": "john@example.com",
+        "client_resadd_pc": "NSW 2000",
+    }
+    adapted = adapt_form956_payload(legacy)
+    assert "client_email" not in adapted
+    assert "_client_family" not in adapted
+    assert adapted["people"] == [{"family": "Doe", "given": "John"}]
+    assert adapted["client_resadd_pc"] == "2000"
+
+    schema_apps = {f["app"] for f in form956_engine.schema_dict()["fields"]}
+    errs = validate_form956(adapted, schema_apps)
+    assert not any(e.code == "unknown" for e in errs)
+
+
+def test_fill_legacy_react_payload(client):
+    legacy = {
+        **GOOD_PAYLOAD,
+        "_client_family": "Doe",
+        "_client_given": "John",
+        "client_email": "john@example.com",
+    }
+    legacy.pop("people", None)
+    res = client.post("/forms/form956/fill", json=legacy)
+    assert res.status_code == 200
+    assert res.headers["Content-Type"].startswith("application/pdf")
+
+
 # ---------------------------------------------------------------- validator
 def test_validator_marn_must_be_7_digits(form956_engine):
     from pdfform.validate import validate_form956

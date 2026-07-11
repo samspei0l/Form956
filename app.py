@@ -87,9 +87,13 @@ CACHE = PdfCache(CACHE_DIR)
 # Per-form validator registry. Add a sibling module + register it here
 # when a new form needs stricter domain rules. The default (no entry)
 # falls back to the engine's permissive ``validate()``.
+from pdfform.adapt_form956 import adapt_form956_payload
 from pdfform.validate import validate_form956
 VALIDATORS: dict[str, callable] = {  # type: ignore[type-arg]
     "form956": validate_form956,
+}
+ADAPTERS: dict[str, callable] = {  # type: ignore[type-arg]
+    "form956": adapt_form956_payload,
 }
 
 
@@ -153,6 +157,10 @@ def form_fill(form_id: str):
     body = request.get_json(silent=True) or {}
     if not isinstance(body, dict):
         return jsonify({"error": "Body must be a JSON object"}), 400
+
+    adapter = ADAPTERS.get(form_id)
+    if adapter is not None:
+        body = adapter(body)
 
     # 1. Per-form validator (stricter domain rules).
     validator = VALIDATORS.get(form_id)
