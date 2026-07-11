@@ -28,6 +28,15 @@ MAX_ENTRIES = 1000
 MAX_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 
 
+#: Bump whenever a fill/validation change can alter engine output for a
+#: payload that hashes the same (e.g. the 2026-07 AcroForm radio-group /V
+#: fix). Folding this into the key means stale on-disk entries from before
+#: the change are never served -- they simply become unreachable under the
+#: new key and age out through the normal LRU eviction, with no need to
+#: reach into the deployed cache directory by hand.
+CACHE_SCHEMA_VERSION = 2
+
+
 def canonicalise(payload: dict) -> str:
     """Stable, deterministic JSON for hashing.
 
@@ -42,8 +51,10 @@ def canonicalise(payload: dict) -> str:
 
 
 def cache_key(payload: dict) -> str:
-    """SHA-256 hex of the canonicalised payload."""
-    return hashlib.sha256(canonicalise(payload).encode("utf-8")).hexdigest()
+    """SHA-256 hex of the canonicalised payload, salted with the cache
+    schema version (see ``CACHE_SCHEMA_VERSION``)."""
+    salted = f"{CACHE_SCHEMA_VERSION}:{canonicalise(payload)}"
+    return hashlib.sha256(salted.encode("utf-8")).hexdigest()
 
 
 class PdfCache:
