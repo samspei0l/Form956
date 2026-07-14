@@ -377,6 +377,76 @@ def test_engine_round_trip_preserves_values(form956_engine, tmp_path):
     assert extracted.get("mg.marn") == "1234567"
 
 
+# ---------------------------------------------------------------- Part B (ending appointment)
+# Q18-Q21 previously had no app-schema fields at all (only the three Q19/Q21
+# Yes/No radios existed) — the agent/client identity, address, phone and
+# MARN/LPN widgets on page 5 were unreachable from the API.
+PART_B_PAYLOAD = {
+    **GOOD_PAYLOAD,
+    "end_agent_family_name": "Trinh",
+    "end_agent_given_names": "Chi",
+    "end_agent_org_name": "Winzoy Legal",
+    "end_agent_off_ph_cc": "61",
+    "end_agent_off_ph_ac": "02",
+    "end_agent_off_ph": "90001234",
+    "end_agent_mob": "0424010868",
+    "end_agent_marn": "1465990",
+    "end_agent_lpn": "10138",
+    "also_assisting_in_ending": "Yes",
+    "ending_this_appointment": "No",
+    "end_client_family_name": "Doe",
+    "end_client_given_names": "John",
+    "end_client_dob": "15/06/1990",
+    "end_client_org_name": "Acme Pty Ltd",
+    "end_client_resadd_str": "42 George St",
+    "end_client_resadd_sub": "Sydney",
+    "end_client_resadd_cntry": "Australia",
+    "end_client_resadd_pc": "2000",
+    "end_client_off_ph_cc": "61",
+    "end_client_off_ph_ac": "02",
+    "end_client_off_ph": "90005678",
+    "end_client_mob": "0400000000",
+    "communicated_ending": "Yes",
+    "end_client_email": "john@example.com",
+}
+
+
+def test_part_b_fields_are_known_to_schema(form956_engine):
+    schema_apps = {f["app"] for f in form956_engine.schema_dict()["fields"]}
+    for app_field in PART_B_PAYLOAD:
+        assert app_field in schema_apps, f"{app_field!r} missing from form956.yaml"
+
+
+def test_part_b_round_trip_preserves_values(form956_engine, tmp_path):
+    out = tmp_path / "filled_partb.pdf"
+    form956_engine.fill(PART_B_PAYLOAD, str(out))
+    assert out.exists()
+    extracted = form956_engine.extract(str(out))
+    assert extracted.get("mg.mig name fam") == "Trinh"
+    assert extracted.get("mg.mig name giv") == "Chi"
+    assert extracted.get("mg.mig agent name org") == "Winzoy Legal"
+    assert extracted.get("mg.mig mobile pn") == "0424010868"
+    assert extracted.get("mg.end mig marn num") == "1465990"
+    assert extracted.get("mg.end mig lpn num") == "10138"
+    assert extracted.get("mg.also ar") == "Yes"
+    assert extracted.get("mg.ending ar") == "No"
+    assert extracted.get("mg.client name fam") == "Doe"
+    assert extracted.get("mg.client name giv") == "John"
+    assert extracted.get("mg.client dob") == "15/06/1990"
+    assert extracted.get("mg.client org name") == "Acme Pty Ltd"
+    assert extracted.get("mg.end resadd str") == "42 George St"
+    assert extracted.get("mg.end resadd pc") == "2000"
+    assert extracted.get("mg.end mob") == "0400000000"
+    assert extracted.get("mg.end comm") == "Yes"
+    assert extracted.get("mg.end email") == "john@example.com"
+
+
+def test_part_b_fill_via_http_returns_pdf(client):
+    res = client.post("/forms/form956/fill", json=PART_B_PAYLOAD)
+    assert res.status_code == 200
+    assert res.headers["Content-Type"].startswith("application/pdf")
+
+
 # ---------------------------------------------------------------- graceful
 # Server must start even when flask-cors and flask-limiter are
 # absent. We just confirm the import path doesn't blow up and the

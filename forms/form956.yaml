@@ -299,23 +299,148 @@ fields:
   # Page 5 — Ending appointment
   # ============================================================
 
+  # Q18 — details of the registered migration agent/legal practitioner/
+  # exempt person whose appointment is ending. Distinct widgets from the
+  # Part A agent fields above (mg.name fam etc.) — this section describes
+  # whoever is named on Part B, who may differ from the Part A agent.
+  - app: end_agent_family_name
+    pdf: "mg.mig name fam"
+    type: text
+    label: "Family name (Part B agent)"
+
+  - app: end_agent_given_names
+    pdf: "mg.mig name giv"
+    type: text
+    label: "Given names (Part B agent)"
+
+  - app: end_agent_org_name
+    pdf: "mg.mig agent name org"
+    type: text
+    label: "Organisation name (Part B agent)"
+
+  - app: end_agent_off_ph_cc
+    pdf: "mg.mig office std"
+    type: text
+    label: "Part B agent — office phone country code"
+
+  - app: end_agent_off_ph_ac
+    pdf: "mg.mig office sn"
+    type: text
+    label: "Part B agent — office phone area code"
+
+  - app: end_agent_off_ph
+    pdf: "mg.mig office pn"
+    type: text
+    label: "Part B agent — office phone number"
+    format: tel
+
+  - app: end_agent_mob
+    pdf: "mg.mig mobile pn"
+    type: text
+    label: "Part B agent — mobile"
+    format: tel
+
+  - app: end_agent_marn
+    pdf: "mg.end mig marn num"
+    type: text
+    label: "Part B agent — MARN"
+
+  - app: end_agent_lpn
+    pdf: "mg.end mig lpn num"
+    type: text
+    label: "Part B agent — legal practitioner number"
+
+  # Q19 — was the Q18 person also the client's authorised recipient, and
+  # is the client ending that authorised-recipient appointment.
   - app: also_assisting_in_ending
     pdf: "mg.also ar"
     type: radio
-    label: "Also assisting in ending the appointment?"
+    label: "Was the person named at Question 18 also appointed as the client's authorised recipient?"
     options: { "Yes": "Yes", "No": "No" }
 
   - app: ending_this_appointment
     pdf: "mg.ending ar"
     type: radio
-    label: "Are you ending this appointment?"
+    label: "Is the client ending their appointment as authorised recipient?"
     options: { "Yes": "Yes", "No": "No" }
 
+  # Q20 — client's details (for the ending appointment).
+  - app: end_client_family_name
+    pdf: "mg.client name fam"
+    type: text
+    label: "Client family name (Part B)"
+
+  - app: end_client_given_names
+    pdf: "mg.client name giv"
+    type: text
+    label: "Client given names (Part B)"
+
+  - app: end_client_dob
+    pdf: "mg.client dob"
+    type: text
+    label: "Client date of birth (Part B, dd/mm/yyyy)"
+    format: date
+
+  - app: end_client_org_name
+    pdf: "mg.client org name"
+    type: text
+    label: "Client organisation name (Part B)"
+
+  - app: end_client_resadd_str
+    pdf: "mg.end resadd str"
+    type: text
+    label: "Client address — street (Part B)"
+
+  - app: end_client_resadd_sub
+    pdf: "mg.end resadd sub"
+    type: text
+    label: "Client address — suburb/state (Part B)"
+
+  - app: end_client_resadd_cntry
+    pdf: "mg.end resadd cntry"
+    type: text
+    label: "Client address — country (Part B)"
+
+  - app: end_client_resadd_pc
+    pdf: "mg.end resadd pc"
+    type: text
+    label: "Client address — postcode (Part B)"
+
+  - app: end_client_off_ph_cc
+    pdf: "mg.end off ph cc"
+    type: text
+    label: "Client office phone — country code (Part B)"
+
+  - app: end_client_off_ph_ac
+    pdf: "mg.end off ph ac"
+    type: text
+    label: "Client office phone — area code (Part B)"
+
+  - app: end_client_off_ph
+    pdf: "mg.end off ph"
+    type: text
+    label: "Client office phone — number (Part B)"
+    format: tel
+
+  - app: end_client_mob
+    pdf: "mg.end mob"
+    type: text
+    label: "Client mobile (Part B)"
+    format: tel
+
+  # Q21 — does the client agree to electronic communication, and their
+  # email address.
   - app: communicated_ending
     pdf: "mg.end comm"
     type: radio
-    label: "Did you communicate ending the appointment?"
+    label: "Does the client agree to the Department communicating with them by email or other electronic means?"
     options: { "Yes": "Yes", "No": "No" }
+
+  - app: end_client_email
+    pdf: "mg.end email"
+    type: text
+    label: "Client email address (Part B)"
+    format: email
 
   # ============================================================
   # Page 6 — Declarations
@@ -403,9 +528,31 @@ sections:
 
   - title: "Ending the appointment"
     fields:
+      - end_agent_family_name
+      - end_agent_given_names
+      - end_agent_org_name
+      - end_agent_off_ph_cc
+      - end_agent_off_ph_ac
+      - end_agent_off_ph
+      - end_agent_mob
+      - end_agent_marn
+      - end_agent_lpn
       - also_assisting_in_ending
       - ending_this_appointment
+      - end_client_family_name
+      - end_client_given_names
+      - end_client_dob
+      - end_client_org_name
+      - end_client_resadd_str
+      - end_client_resadd_sub
+      - end_client_resadd_cntry
+      - end_client_resadd_pc
+      - end_client_off_ph_cc
+      - end_client_off_ph_ac
+      - end_client_off_ph
+      - end_client_mob
       - communicated_ending
+      - end_client_email
 
   - title: "Declarations"
     fields:

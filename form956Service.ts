@@ -114,10 +114,34 @@ export interface Form956Payload {
   // Repeating group (people assisted)
   people?: Array<{ family: string; given: string }>;
 
-  // End-of-appointment questions
+  // Part B — Ending appointment (Q18-Q21). Distinct from the Part A agent/
+  // client fields above — this describes whoever is named on the form as
+  // ending an appointment, who may differ from the Part A agent/client.
+  end_agent_family_name?: string;
+  end_agent_given_names?: string;
+  end_agent_org_name?: string;
+  end_agent_off_ph_cc?: string;
+  end_agent_off_ph_ac?: string;
+  end_agent_off_ph?: string;
+  end_agent_mob?: string;
+  end_agent_marn?: string;
+  end_agent_lpn?: string;
   also_assisting_in_ending?: 'Yes' | 'No';
   ending_this_appointment?: 'Yes' | 'No';
+  end_client_family_name?: string;
+  end_client_given_names?: string;
+  end_client_dob?: string;
+  end_client_org_name?: string;
+  end_client_resadd_str?: string;
+  end_client_resadd_sub?: string;
+  end_client_resadd_cntry?: string;
+  end_client_resadd_pc?: string;
+  end_client_off_ph_cc?: string;
+  end_client_off_ph_ac?: string;
+  end_client_off_ph?: string;
+  end_client_mob?: string;
   communicated_ending?: 'Yes' | 'No';
+  end_client_email?: string;
 
   // Declarations
   agent_declarations_agreed?: boolean;
