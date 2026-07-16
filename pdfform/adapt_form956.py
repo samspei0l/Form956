@@ -77,23 +77,22 @@ def _merge_people(
     family: str | None,
     given: str | None,
 ) -> None:
+    """Client 1 is always PDF row 0 ("cc.name fam"/"cc.name giv"); any
+    dependants already in ``people`` are additional people and belong in
+    rows 1+ ("cc.name fam 2" etc). Insert Client 1 ahead of them instead of
+    overwriting people[0] — overwriting silently dropped the first
+    dependant whenever one was present."""
     if not family and not given:
         return
     people = payload.get("people")
     if not isinstance(people, list):
         people = []
     row: dict[str, str] = {}
-    if people and isinstance(people[0], dict):
-        row = dict(people[0])
     if family:
         row["family"] = family
     if given:
         row["given"] = given
-    if people:
-        people[0] = row
-    else:
-        people = [row]
-    payload["people"] = people
+    payload["people"] = [row, *people]
 
 
 def adapt_form956_payload(payload: dict) -> dict:

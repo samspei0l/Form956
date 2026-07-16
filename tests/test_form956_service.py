@@ -100,6 +100,24 @@ def test_adapt_legacy_react_payload(form956_engine):
     assert not any(e.code == "unknown" for e in errs)
 
 
+def test_adapt_inserts_client_1_ahead_of_dependants(form956_engine):
+    """Client 1 must land at people[0] without dropping dependants already
+    in the list — a prior bug overwrote people[0] with Client 1's name,
+    silently discarding the first dependant whenever one was present."""
+    from pdfform.adapt_form956 import adapt_form956_payload
+
+    legacy = {
+        "_client_family": "Doe",
+        "_client_given": "John",
+        "people": [{"family": "Doe", "given": "Jane Jr"}],
+    }
+    adapted = adapt_form956_payload(legacy)
+    assert adapted["people"] == [
+        {"family": "Doe", "given": "John"},
+        {"family": "Doe", "given": "Jane Jr"},
+    ]
+
+
 def test_fill_legacy_react_payload(client):
     legacy = {
         **GOOD_PAYLOAD,
@@ -203,6 +221,31 @@ def test_validator_unknown_field(form956_engine):
     }
     errs = validate_form956({**base, "definitely_not_a_field": "x"}, schema_apps)
     assert any(e.field == "definitely_not_a_field" and e.code == "unknown" for e in errs)
+
+
+@pytest.mark.parametrize(
+    "value", ["visa", "sponsor", "nom", "proposer", "holder", "person"]
+)
+def test_client_role_accepts_all_engine_options(form956_engine, value):
+    """Every option the schema declares for client_role must validate —
+    a prior bug had the frontend sending 'nominator' (invalid) instead of
+    'nom', and silently defaulting proposer/cancellation/ministerial to
+    'visa' instead of proposer/holder/person."""
+    payload = dict(GOOD_PAYLOAD, client_role=value)
+    errs = form956_engine.validate(payload)
+    assert not any(e.startswith("'client_role'") for e in errs)
+
+
+@pytest.mark.parametrize(
+    "value", ["close", "sponsor", "nominator", "diplom", "parlia", "public"]
+)
+def test_exemption_reason_accepts_all_engine_options(form956_engine, value):
+    """Every option the schema declares for exemption_reason must validate —
+    a prior bug passed the frontend's raw UI values (close_family, diplomatic,
+    mp_staff, public_service) straight through unmapped."""
+    payload = dict(GOOD_PAYLOAD, exemption_reason=value)
+    errs = form956_engine.validate(payload)
+    assert not any(e.startswith("'exemption_reason'") for e in errs)
 
 
 def test_apply_normalisations_converts_iso_dates():
@@ -317,6 +360,64 @@ def test_fill_missing_required_returns_400(client):
 def test_fill_unknown_form_returns_404(client):
     res = client.post("/forms/nope/fill", json=GOOD_PAYLOAD)
     assert res.status_code == 404
+
+
+# ------------------------------------------------------ Q15/Q16 branch fields
+def test_fill_cancellation_and_rid_trn_land_on_distinct_widgets(client):
+    """cancellation_subclass/cancellation_date_granted/client_rid/client_trn
+    each have their own PDF widget, distinct from application_type/date_lodged
+    and client_diac_id — a prior bug collapsed RID/TRN into client_diac_id and
+    dropped the cancellation branch entirely."""
+    import fitz
+
+    payload = dict(
+        GOOD_PAYLOAD,
+        client_role="holder",
+        assistance_category="Cancellation",
+        cancellation_subclass="189",
+        cancellation_date_granted="15/03/2022",
+        client_rid="RID-0099",
+        client_trn="TRN-8877",
+        client_diac_id="DIAC-555",
+    )
+    res = client.post("/forms/form956/fill", json=payload)
+    assert res.status_code == 200
+
+    doc = fitz.open(stream=res.get_data(), filetype="pdf")
+    values = {
+        w.field_name: w.field_value
+        for page in doc
+        for w in (page.widgets() or [])
+        if w.field_name
+    }
+    assert values["ta.typecancel"] == "189"
+    assert values["ta.lodgedcancel"] == "15/03/2022"
+    assert values["ta.diac request id"] == "RID-0099"
+    assert values["ta.diac trans id"] == "TRN-8877"
+    assert values["cc.diac id"] == "DIAC-555"
+    # application_type/date_lodged widgets untouched by the cancellation values
+    assert values["ta.type"] == GOOD_PAYLOAD["application_type"]
+
+
+def test_fill_specific_matter_details_lands_on_own_widget(client):
+    import fitz
+
+    payload = dict(
+        GOOD_PAYLOAD,
+        assistance_category="Specific",
+        specific_matter_details="Sponsorship monitoring",
+    )
+    res = client.post("/forms/form956/fill", json=payload)
+    assert res.status_code == 200
+
+    doc = fitz.open(stream=res.get_data(), filetype="pdf")
+    values = {
+        w.field_name: w.field_value
+        for page in doc
+        for w in (page.widgets() or [])
+        if w.field_name
+    }
+    assert values["ta.specific matter"] == "Sponsorship monitoring"
 
 
 def test_fill_bad_radio_value_returns_422(client):

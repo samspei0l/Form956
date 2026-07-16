@@ -89,7 +89,7 @@ export interface Form956Payload {
   agent_lpn?: string;
 
   // Part B — client
-  client_role: 'visa' | 'sponsor' | 'nominator' | string;  // required
+  client_role: 'visa' | 'sponsor' | 'nom' | 'proposer' | 'holder' | 'person' | string;  // required
   assistance_category?: 'Application' | 'Cancellation' | 'Specific' | string;
   not_yet_decided?: boolean;
   also_assisting_another?: 'Yes' | 'No';
@@ -110,6 +110,14 @@ export interface Form956Payload {
   // Part C — application
   application_type: string;     // required
   date_lodged?: string;         // DD/MM/YYYY
+  // Q15 cancellation branch — distinct widgets from application_type/date_lodged.
+  cancellation_subclass?: string;
+  cancellation_date_granted?: string;   // DD/MM/YYYY
+  // Q15 specific matter branch
+  specific_matter_details?: string;
+  // Q16 — at least one of RID / TRN
+  client_rid?: string;
+  client_trn?: string;
 
   // Repeating group (people assisted)
   people?: Array<{ family: string; given: string }>;
@@ -186,15 +194,16 @@ export function adaptForm956Payload(
   delete out.client_given;
 
   if (family || given) {
+    // Client 1 is always PDF row 0 ("cc.name fam"/"cc.name giv"); dependants
+    // are additional people and belong in rows 1+ ("cc.name fam 2" etc).
+    // Insert Client 1 ahead of any dependants already in `people` instead of
+    // overwriting people[0] — overwriting silently dropped the first
+    // dependant whenever one was present.
     const people = Array.isArray(out.people) ? [...out.people] : [];
-    const row =
-      people[0] && typeof people[0] === 'object'
-        ? { ...(people[0] as Record<string, unknown>) }
-        : {};
+    const row: Record<string, unknown> = {};
     if (family) row.family = family;
     if (given) row.given = given;
-    if (people.length) people[0] = row;
-    else people.push(row);
+    people.unshift(row);
     out.people = people;
   }
 
