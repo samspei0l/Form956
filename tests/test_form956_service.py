@@ -100,6 +100,18 @@ def test_adapt_legacy_react_payload(form956_engine):
     assert not any(e.code == "unknown" for e in errs)
 
 
+def test_adapt_swaps_is_new_application_to_raw_pdf_state(form956_engine):
+    """The `mg.app` widget pair's on-state names are swapped relative to
+    their printed labels in the source PDF (New appointment's real on-state
+    is "No"; Appointment has ended's is "Yes"). A prior bug passed the
+    app-facing value straight through, ticking the wrong checkbox whenever
+    a value was set."""
+    from pdfform.adapt_form956 import adapt_form956_payload
+
+    assert adapt_form956_payload({"is_new_application": "Yes"})["is_new_application"] == "No"
+    assert adapt_form956_payload({"is_new_application": "No"})["is_new_application"] == "Yes"
+
+
 def test_adapt_inserts_client_1_ahead_of_dependants(form956_engine):
     """Client 1 must land at people[0] without dropping dependants already
     in the list — a prior bug overwrote people[0] with Client 1's name,
@@ -418,6 +430,39 @@ def test_fill_specific_matter_details_lands_on_own_widget(client):
         if w.field_name
     }
     assert values["ta.specific matter"] == "Sponsorship monitoring"
+
+
+def _mg_app_checked_state(pdf_bytes: bytes) -> dict[str, str]:
+    """Return {"new": "on"/"off", "ended": "on"/"off"} for the mg.app
+    checkbox pair, keyed by their vertical position on the page (the two
+    widgets share one field name, so field_value alone can't distinguish
+    them — the per-widget /AS appearance state can)."""
+    import fitz
+
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    page = doc[2]
+    widgets = [w for w in (page.widgets() or []) if w.field_name == "mg.app"]
+    widgets.sort(key=lambda w: w.rect.y0)  # top widget ("New appointment") first
+    result = {}
+    for label, w in zip(("new", "ended"), widgets):
+        obj = doc.xref_object(w.xref, compressed=False)
+        as_line = next(line for line in obj.splitlines() if "/AS" in line)
+        result[label] = "off" if "/Off" in as_line else "on"
+    return result
+
+
+def test_fill_new_appointment_ticks_new_not_ended(client):
+    payload = dict(GOOD_PAYLOAD, is_new_application="Yes")
+    res = client.post("/forms/form956/fill", json=payload)
+    assert res.status_code == 200
+    assert _mg_app_checked_state(res.get_data()) == {"new": "on", "ended": "off"}
+
+
+def test_fill_ended_appointment_ticks_ended_not_new(client):
+    payload = dict(GOOD_PAYLOAD, is_new_application="No")
+    res = client.post("/forms/form956/fill", json=payload)
+    assert res.status_code == 200
+    assert _mg_app_checked_state(res.get_data()) == {"new": "off", "ended": "on"}
 
 
 def test_fill_bad_radio_value_returns_422(client):
