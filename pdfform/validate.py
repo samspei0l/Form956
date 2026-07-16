@@ -25,7 +25,14 @@ from typing import Any
 DATE_DDMMYYYY = re.compile(r"^\d{2}/\d{2}/\d{4}$")
 DATE_YYYYMMDD = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MARN_RE = re.compile(r"^\d{7}$")
-POSTCODE_RE = re.compile(r"^\d{4}$")
+# International-friendly: the agent/client address fields have no country
+# selector reaching the engine, so this can't be gated on "is it Australia".
+# Real-world postal codes are 3-10 chars of letters/digits/spaces/hyphens
+# and virtually always contain at least one digit (AU "2000", US "90210",
+# UK "SW1A 1AA", CA "K1A 0B1", JP "123-4567", ...). This used to be AU-only
+# (`^\d{4}$`), which rejected outright any non-Australian agent/client
+# address's postcode.
+POSTCODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 \-]{1,8}[A-Za-z0-9]$")
 # RFC-5322 is too permissive; this is "good enough" for client form input.
 EMAIL_RE = re.compile(
     r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$"
@@ -163,16 +170,16 @@ def validate_form956(payload: dict, known_apps: set[str]) -> list[ValidationErro
 
     # 6. Postcode fields (*_pc).
     for f in payload:
-        if not (f.endswith("_pc") or f == "agent_postal_pc"
-                or f == "client_postcode"):
+        if not f.endswith("_pc"):
             continue
         v = payload[f]
         if v is None or v == "":
             continue
-        if not isinstance(v, str) or not POSTCODE_RE.match(v):
+        if (not isinstance(v, str) or not POSTCODE_RE.match(v)
+                or not any(ch.isdigit() for ch in v)):
             errs.append(ValidationError(
                 field=f, code="format",
-                message=f"{f!r} must be a 4-digit postcode",
+                message=f"{f!r} must be a valid postal code",
             ))
 
     return errs

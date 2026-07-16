@@ -31,7 +31,7 @@ _POSTCODE_FIELDS = frozenset({
     "agent_resadd_pc",
     "agent_postal_pc",
     "client_resadd_pc",
-    "client_postcode",
+    "end_client_resadd_pc",
 })
 
 # `mg.app` (Q1 "Is this a new application?") has its two checkbox widgets'
@@ -63,7 +63,15 @@ def _pop_first(payload: dict, keys: tuple[str, ...]) -> str | None:
 
 
 def _normalise_postcode(value: Any) -> str:
-    """Coerce common postcode shapes to a 4-digit AU string."""
+    """Strip a leading AU state abbreviation from a combined "STATE 1234"
+    shape (e.g. "NSW 2000" -> "2000"); pass everything else through as-is.
+
+    International postal codes (a 5-digit US ZIP, an alphanumeric UK/CA
+    code, ...) must NOT be touched here. This used to fall back to
+    truncating any digit-only string to its first 4 characters, which
+    silently corrupted non-AU postcodes (a US ZIP "90210" became the wrong
+    "9021") instead of leaving them alone.
+    """
     if value is None or value == "":
         return ""
     if isinstance(value, (int, float)):
@@ -73,12 +81,15 @@ def _normalise_postcode(value: Any) -> str:
     value = value.strip()
     if re.fullmatch(r"\d{4}", value):
         return value
-    match = re.search(r"\b(\d{4})\b", value)
-    if match:
-        return match.group(1)
-    digits = re.sub(r"\D", "", value)
-    if len(digits) >= 4:
-        return digits[:4]
+    # Only unwrap a "STATE 1234" shape (a state-abbreviation prefix in
+    # front of the real AU postcode) when there's a letter in the value.
+    # An all-digit-and-punctuation value (US ZIP, ZIP+4, ...) is left
+    # untouched even if some 4-digit run inside it happens to be bounded
+    # by non-digit characters (e.g. "90210-1234" must not become "1234").
+    if re.search(r"[A-Za-z]", value):
+        match = re.search(r"\b(\d{4})\b", value)
+        if match:
+            return match.group(1)
     return value
 
 
