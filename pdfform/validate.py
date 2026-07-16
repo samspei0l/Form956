@@ -64,6 +64,7 @@ DATE_FIELDS = frozenset({
     "agent_declaration_date",
     "client_declaration_date",
     "end_client_dob",
+    "cancellation_date_granted",
 })
 
 #: Email fields (must exist in forms/form956.yaml).

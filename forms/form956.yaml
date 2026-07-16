@@ -295,6 +295,40 @@ fields:
     label: "Date lodged (dd/mm/yyyy)"
     format: date
 
+  # Q15 (cancellation branch) — subclass + date granted of the visa
+  # being considered for cancellation. Distinct widgets from
+  # application_type/date_lodged, which are printed only under the
+  # "Application process" branch.
+  - app: cancellation_subclass
+    pdf: "ta.typecancel"
+    type: text
+    label: "Subclass of visa (cancellation)"
+
+  - app: cancellation_date_granted
+    pdf: "ta.lodgedcancel"
+    type: text
+    label: "Date visa granted (cancellation, dd/mm/yyyy)"
+    format: date
+
+  # Q15 (specific matter branch)
+  - app: specific_matter_details
+    pdf: "ta.specific matter"
+    type: text
+    label: "Specific matter details"
+
+  # Q16 — provide at least one of RID / TRN. Distinct widgets from
+  # cc.diac id (the Client ID number field near the client's contact
+  # details, printed separately on the form).
+  - app: client_rid
+    pdf: "ta.diac request id"
+    type: text
+    label: "Request ID number (RID)"
+
+  - app: client_trn
+    pdf: "ta.diac trans id"
+    type: text
+    label: "Transaction Reference Number (TRN)"
+
   # ============================================================
   # Page 5 — Ending appointment
   # ============================================================
@@ -556,6 +590,11 @@ sections:
       - client_diac_id
       - application_type
       - date_lodged
+      - cancellation_subclass
+      - cancellation_date_granted
+      - specific_matter_details
+      - client_rid
+      - client_trn
 
   - title: "Ending the appointment"
     fields:
