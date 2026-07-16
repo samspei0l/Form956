@@ -222,6 +222,49 @@ def test_validator_bad_postcode(form956_engine):
     assert any(e.field == "agent_resadd_pc" and e.code == "format" for e in errs)
 
 
+@pytest.mark.parametrize("postcode", [
+    "2000",         # AU
+    "90210",        # US ZIP
+    "90210-1234",   # US ZIP+4
+    "SW1A 1AA",     # UK
+    "K1A 0B1",      # Canada
+    "123-4567",     # Japan
+    "560001",       # India
+])
+def test_validator_accepts_international_postcodes(form956_engine, postcode):
+    """Postcode validation used to be AU-only (`^\\d{4}$`), which rejected
+    any non-Australian agent/client address outright. There's no country
+    field reaching the engine to gate this on, so international formats
+    must be accepted generically."""
+    from pdfform.validate import validate_form956
+    schema_apps = {f["app"] for f in form956_engine.schema_dict()["fields"]}
+    base = {
+        "agent_family_name": "Smith", "agent_given_names": "Jane",
+        "agent_dob": "01/01/1980", "agent_marn": "1234567",
+        "agent_email": "j@e.com", "client_role": "visa",
+        "application_type": "Skilled visa",
+    }
+    errs = validate_form956({**base, "client_resadd_pc": postcode}, schema_apps)
+    assert not any(e.field == "client_resadd_pc" for e in errs)
+
+
+def test_adapt_does_not_truncate_non_au_postcodes(form956_engine):
+    """`_normalise_postcode` used to fall back to truncating any 4+ digit
+    string to its first 4 characters, silently corrupting non-AU postcodes
+    (a 5-digit US ZIP "90210" became the wrong "9021")."""
+    from pdfform.adapt_form956 import adapt_form956_payload
+
+    adapted = adapt_form956_payload({"client_resadd_pc": "90210"})
+    assert adapted["client_resadd_pc"] == "90210"
+
+    adapted = adapt_form956_payload({"client_resadd_pc": "90210-1234"})
+    assert adapted["client_resadd_pc"] == "90210-1234"
+
+    # AU shorthand ("STATE 1234") still strips down to the bare postcode.
+    adapted = adapt_form956_payload({"agent_resadd_pc": "NSW 2000"})
+    assert adapted["agent_resadd_pc"] == "2000"
+
+
 def test_validator_unknown_field(form956_engine):
     from pdfform.validate import validate_form956
     schema_apps = {f["app"] for f in form956_engine.schema_dict()["fields"]}
