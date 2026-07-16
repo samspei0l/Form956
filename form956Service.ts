@@ -143,9 +143,15 @@ export interface Form956Payload {
   communicated_ending?: 'Yes' | 'No';
   end_client_email?: string;
 
-  // Declarations
-  agent_declarations_agreed?: boolean;
-  client_declarations_agreed?: boolean;
+  // Declarations — one independent tick per widget (Q23 agent x4, Q24 client x4)
+  agent_decl_appointment?: boolean;
+  agent_decl_authorised_recipient?: boolean;
+  agent_decl_ending_appointment?: boolean;
+  agent_decl_withdrawal_recipient?: boolean;
+  client_decl_appointment?: boolean;
+  client_decl_authorised_recipient?: boolean;
+  client_decl_ending_appointment?: boolean;
+  client_decl_withdrawal_recipient?: boolean;
   agent_declaration_date?: string;
   client_declaration_date?: string;
 
