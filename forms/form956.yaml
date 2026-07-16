@@ -462,6 +462,20 @@ fields:
     label: "Client mobile (Part B)"
     format: tel
 
+  # Q22 — provide at least one of RID/TRN for the Part B ending appointment.
+  # Distinct widgets from Q16's client_rid/client_trn ("ta.diac request id"/
+  # "ta.diac trans id") and from cc.diac id — this section describes
+  # whoever is named in Part B, who may differ from the Part A client.
+  - app: end_client_rid
+    pdf: "mg.client diac request id"
+    type: text
+    label: "Request ID number (RID) (Part B)"
+
+  - app: end_client_trn
+    pdf: "mg.client diac trans id"
+    type: text
+    label: "Transaction Reference Number (TRN) (Part B)"
+
   # Q21 — does the client agree to electronic communication, and their
   # email address.
   - app: communicated_ending
@@ -621,6 +635,8 @@ sections:
       - end_client_off_ph_ac
       - end_client_off_ph
       - end_client_mob
+      - end_client_rid
+      - end_client_trn
       - communicated_ending
       - end_client_email
 

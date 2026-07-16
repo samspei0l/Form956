@@ -148,6 +148,8 @@ export interface Form956Payload {
   end_client_off_ph_ac?: string;
   end_client_off_ph?: string;
   end_client_mob?: string;
+  end_client_rid?: string;
+  end_client_trn?: string;
   communicated_ending?: 'Yes' | 'No';
   end_client_email?: string;
 

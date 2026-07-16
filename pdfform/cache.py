@@ -34,7 +34,10 @@ MAX_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 #: the change are never served -- they simply become unreachable under the
 #: new key and age out through the normal LRU eviction, with no need to
 #: reach into the deployed cache directory by hand.
-CACHE_SCHEMA_VERSION = 2
+#: v3 (2026-07-16): is_new_application's mg.app checkbox pair was ticking
+#: the wrong box (see adapt_form956.py) -- any cached PDF for a payload
+#: that set this field was wrong and must not be served after the fix.
+CACHE_SCHEMA_VERSION = 3
 
 
 def canonicalise(payload: dict) -> str:

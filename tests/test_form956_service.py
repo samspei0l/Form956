@@ -465,6 +465,38 @@ def test_fill_ended_appointment_ticks_ended_not_new(client):
     assert _mg_app_checked_state(res.get_data()) == {"new": "off", "ended": "on"}
 
 
+def test_fill_part_b_rid_trn_lands_on_own_widgets(client):
+    """Q22 (Part B "provide at least one of RID/TRN") has its own widgets
+    (mg.client diac request id/trans id), distinct from Q16's client_rid/
+    client_trn (ta.diac request id/trans id) and from cc.diac id. These
+    were previously entirely unmapped in the schema, so any value the app
+    sent for them was silently dropped."""
+    import fitz
+
+    payload = dict(
+        GOOD_PAYLOAD,
+        end_client_rid="RID-PARTB-01",
+        end_client_trn="TRN-PARTB-02",
+        client_rid="RID-PARTA-01",
+        client_trn="TRN-PARTA-02",
+    )
+    res = client.post("/forms/form956/fill", json=payload)
+    assert res.status_code == 200
+
+    doc = fitz.open(stream=res.get_data(), filetype="pdf")
+    values = {
+        w.field_name: w.field_value
+        for page in doc
+        for w in (page.widgets() or [])
+        if w.field_name
+    }
+    assert values["mg.client diac request id"] == "RID-PARTB-01"
+    assert values["mg.client diac trans id"] == "TRN-PARTB-02"
+    # Part A's Q16 widgets are untouched by the Part B values
+    assert values["ta.diac request id"] == "RID-PARTA-01"
+    assert values["ta.diac trans id"] == "TRN-PARTA-02"
+
+
 def test_fill_bad_radio_value_returns_422(client):
     bad = dict(GOOD_PAYLOAD, agent_title="emperor")  # not in on-state list
     res = client.post("/forms/form956/fill", json=bad)
