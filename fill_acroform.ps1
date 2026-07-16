@@ -58,8 +58,14 @@ $body = @{
   ending_this_appointment  = 'Yes'
   communicated_ending      = 'Yes'
 
-  agent_declarations_agreed  = $true
-  client_declarations_agreed = $true
+  agent_decl_appointment             = $true
+  agent_decl_authorised_recipient    = $true
+  agent_decl_ending_appointment      = $true
+  agent_decl_withdrawal_recipient    = $true
+  client_decl_appointment            = $true
+  client_decl_authorised_recipient   = $true
+  client_decl_ending_appointment     = $true
+  client_decl_withdrawal_recipient   = $true
   agent_declaration_date = '06/06/2026'
   client_declaration_date = '06/06/2026'
 } | ConvertTo-Json -Depth 8

@@ -446,18 +446,49 @@ fields:
   # Page 6 — Declarations
   # ============================================================
 
-  # 4 migration-agent declaration ticks, all ticked when the app
-  # value is truthy. Covers widget "mg.dec" plus "mg.dec 1..4".
-  - app: agent_declarations_agreed
-    pdf: "mg.dec"
-    type: check_all
-    label: "I, the migration agent, agree to all 4 declaration statements above"
+  # Agent declarations (Q23) — 4 independent ticks, one widget each.
+  # Each is ticked only when its own app value is truthy; unlike the old
+  # check_all field, ticking one does not tick the others.
+  - app: agent_decl_appointment
+    pdf: "mg.dec 1"
+    type: radio
+    label: "Agent declaration — appointment of agent"
 
-  # 4 client declaration ticks, all ticked when the app value is truthy.
-  - app: client_declarations_agreed
-    pdf: "cc.dec"
-    type: check_all
-    label: "I, the client, agree to all 4 declaration statements above"
+  - app: agent_decl_authorised_recipient
+    pdf: "mg.dec 2"
+    type: radio
+    label: "Agent declaration — appointment as authorised recipient"
+
+  - app: agent_decl_ending_appointment
+    pdf: "mg.dec 3"
+    type: radio
+    label: "Agent declaration — ending appointment"
+
+  - app: agent_decl_withdrawal_recipient
+    pdf: "mg.dec 4"
+    type: radio
+    label: "Agent declaration — withdrawal of authorised recipient"
+
+  # Client declarations (Q24) — 4 independent ticks, one widget each.
+  - app: client_decl_appointment
+    pdf: "cc.dec 1"
+    type: radio
+    label: "Client declaration — appointment of agent"
+
+  - app: client_decl_authorised_recipient
+    pdf: "cc.dec 2"
+    type: radio
+    label: "Client declaration — appointment of authorised recipient"
+
+  - app: client_decl_ending_appointment
+    pdf: "cc.dec 3"
+    type: radio
+    label: "Client declaration — ending appointment"
+
+  - app: client_decl_withdrawal_recipient
+    pdf: "cc.dec 4"
+    type: radio
+    label: "Client declaration — withdrawal of authorised recipient"
 
   - app: agent_declaration_date
     pdf: "mg.dec date"
@@ -556,7 +587,13 @@ sections:
 
   - title: "Declarations"
     fields:
-      - agent_declarations_agreed
+      - agent_decl_appointment
+      - agent_decl_authorised_recipient
+      - agent_decl_ending_appointment
+      - agent_decl_withdrawal_recipient
       - agent_declaration_date
-      - client_declarations_agreed
+      - client_decl_appointment
+      - client_decl_authorised_recipient
+      - client_decl_ending_appointment
+      - client_decl_withdrawal_recipient
       - client_declaration_date
