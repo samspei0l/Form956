@@ -34,6 +34,16 @@ _POSTCODE_FIELDS = frozenset({
     "client_postcode",
 })
 
+# `mg.app` (Q1 "Is this a new application?") has its two checkbox widgets'
+# AcroForm on-state names swapped relative to their printed labels in the
+# source PDF: the "New appointment" widget's real on-state is "No", and the
+# "Appointment has ended" widget's real on-state is "Yes" (verified via
+# `page.widgets()` button_states() against the label text at those
+# coordinates). The engine matches values directly against raw on-state
+# names with no translation, so invert here rather than in the shared
+# engine — every other radio field's on-state names match their app values.
+_IS_NEW_APPLICATION_TO_RAW_STATE = {"Yes": "No", "No": "Yes"}
+
 
 def _first_str(payload: dict, keys: tuple[str, ...]) -> str | None:
     for k in keys:
@@ -116,5 +126,8 @@ def adapt_form956_payload(payload: dict) -> dict:
     for f in _POSTCODE_FIELDS:
         if f in out and out[f] not in (None, ""):
             out[f] = _normalise_postcode(out[f])
+
+    if out.get("is_new_application") in _IS_NEW_APPLICATION_TO_RAW_STATE:
+        out["is_new_application"] = _IS_NEW_APPLICATION_TO_RAW_STATE[out["is_new_application"]]
 
     return out
