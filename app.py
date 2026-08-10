@@ -96,6 +96,31 @@ ADAPTERS: dict[str, callable] = {  # type: ignore[type-arg]
     "form956": adapt_form956_payload,
 }
 
+# --------------------------------------------------------------------- cost agreements
+# A second, structurally different PDF-generation capability: builds a new
+# PDF from scratch (ReportLab Platypus flowables) rather than filling an
+# existing AcroForm, so it gets its own registries/routes instead of being
+# folded into VALIDATORS/ADAPTERS above. See costagreements/layout.py for
+# why (the "spacing between content and the signature/initials/date block"
+# bug class this replaces).
+from costagreements.builders.general import build_general_cost_agreement
+from costagreements.schema import GeneralCostAgreementData
+from costagreements.validate import apply_normalisations as apply_ca_normalisations
+from costagreements.validate import validate_general_cost_agreement
+
+COST_AGREEMENT_BUILDERS: dict[str, callable] = {  # type: ignore[type-arg]
+    "general": build_general_cost_agreement,
+}
+COST_AGREEMENT_SCHEMAS: dict[str, callable] = {  # type: ignore[type-arg]
+    "general": GeneralCostAgreementData.from_payload,
+}
+COST_AGREEMENT_VALIDATORS: dict[str, callable] = {  # type: ignore[type-arg]
+    "general": validate_general_cost_agreement,
+}
+COST_AGREEMENT_NORMALISERS: dict[str, callable] = {  # type: ignore[type-arg]
+    "general": apply_ca_normalisations,
+}
+
 
 def _form_listing() -> list[dict]:
     """Picklist payload for the form-picker landing page."""
@@ -256,6 +281,78 @@ def form_preview(form_id: str):
     return send_file(CACHE.path_of(key), mimetype="application/pdf", as_attachment=False)
 
 
+# --------------------------------------------------------------------- cost agreements
+_ca_fill_decorator = _limiter.limit(FILL_RATE_LIMIT) if _limiter is not None else (lambda f: f)
+
+
+@app.route("/cost-agreements/<agreement_type>/fill", methods=["POST"])
+@_ca_fill_decorator
+def cost_agreement_fill(agreement_type: str):
+    """Build a cost-agreement PDF from scratch and return it.
+
+    Unlike ``/forms/<id>/fill`` this doesn't fill an existing AcroForm --
+    it builds a brand-new document (see costagreements/). Synchronous only:
+    the returned PDF is final; supply ``client_signature_data`` /
+    ``rep_signature_data`` (base64 image data URIs) up front if signatures
+    are already captured, otherwise the signature boxes render empty for
+    print-and-sign.
+
+    Status codes:
+      - 200: PDF returned (cache hit OR fresh build). X-Cache: hit|miss.
+      - 400: validation error -> JSON body {errors: [{field, code, message}]}.
+      - 404: unknown agreement type.
+      - 500: unexpected build failure.
+    """
+    builder = COST_AGREEMENT_BUILDERS.get(agreement_type)
+    if builder is None:
+        return jsonify({"error": f"Unknown cost agreement type {agreement_type!r}"}), 404
+
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        return jsonify({"error": "Body must be a JSON object"}), 400
+
+    validator = COST_AGREEMENT_VALIDATORS[agreement_type]
+    verrs = validator(body)
+    if verrs:
+        log.info("cost agreement validation failed", extra={"agreement_type": agreement_type})
+        return jsonify({
+            "error": "Validation failed",
+            "errors": [v.to_dict() for v in verrs],
+        }), 400
+
+    normaliser = COST_AGREEMENT_NORMALISERS.get(agreement_type)
+    if normaliser is not None:
+        body = normaliser(body)
+
+    # Idempotence cache, reusing pdfform.cache.PdfCache. Namespaced by
+    # agreement_type in the hashed payload (not just the raw body) so an
+    # identical payload for two different agreement types, or a Form-956
+    # payload that happens to hash the same, can never collide -- cache_key()
+    # itself has no per-form/per-type salt (true for /forms/* too).
+    key = cache_key({"_agreement_type": agreement_type, **body})
+    if CACHE.has(key):
+        log.info("cache hit", extra={"agreement_type": agreement_type, "cache_hit": True})
+        resp = send_file(CACHE.path_of(key), mimetype="application/pdf", as_attachment=False)
+        resp.headers["X-Cache-Key"] = key
+        resp.headers["X-Cache"] = "hit"
+        return resp
+
+    schema_fn = COST_AGREEMENT_SCHEMAS[agreement_type]
+    data = schema_fn(body)
+    try:
+        pdf_bytes = builder(data)
+    except Exception:
+        log.exception("cost agreement build failed", extra={"agreement_type": agreement_type})
+        return jsonify({"error": "PDF generation failed"}), 500
+
+    out_path = CACHE.put(key, pdf_bytes)
+    log.info("cache miss", extra={"agreement_type": agreement_type, "cache_hit": False})
+    resp = send_file(out_path, mimetype="application/pdf", as_attachment=False)
+    resp.headers["X-Cache-Key"] = key
+    resp.headers["X-Cache"] = "miss"
+    return resp
+
+
 # --------------------------------------------------------------------- ops
 @app.route("/health")
 def health():
@@ -264,6 +361,7 @@ def health():
         "ok": True,
         "forms_loaded": len(ENGINES),
         "forms": sorted(ENGINES.keys()),
+        "cost_agreement_types": sorted(COST_AGREEMENT_BUILDERS.keys()),
         **CACHE.stats(),
     })
 
