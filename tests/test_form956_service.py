@@ -42,8 +42,14 @@ def app():
     if "app" in sys.modules:
         importlib.reload(sys.modules["app"])
     else:
-        import app  # type: ignore
-    return app
+        import app  # noqa: F401  # type: ignore
+    # NB: return sys.modules, not the bare name -- `import app` in the
+    # `else` branch above makes Python treat `app` as a local for the
+    # whole function (its assignment is unconditional at parse time), so
+    # `return app` alone raises UnboundLocalError whenever this fixture
+    # takes the `if` branch (i.e. whenever some other module already
+    # imported `app` earlier in the test session).
+    return sys.modules["app"]
 
 
 @pytest.fixture()

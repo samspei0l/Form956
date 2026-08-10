@@ -9,6 +9,12 @@ flask==3.0.3
 pymupdf==1.24.10
 pyyaml==6.0.1
 
+# --- cost agreement PDF generation (costagreements/) ---
+# Platypus flowables (Frame/Table/KeepTogether) give automatic pagination
+# and "never split this block" guarantees, unlike hand-computed y-coordinate
+# drawing -- see costagreements/layout.py for why.
+reportlab==5.0.0
+
 # --- production hardening (optional but recommended) ---
 gunicorn==22.0.0
 flask-cors==4.0.1
