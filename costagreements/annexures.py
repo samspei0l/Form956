@@ -9,10 +9,11 @@ before extending the story with the flowables returned here.
 from __future__ import annotations
 
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import Image, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 
 from . import layout as L
 from .components import P, PT, bulleted_html, esc, _scaled_image
+from .sigmeta import MeasuredBox, SigMetaState
 
 
 def _heading(text: str) -> Paragraph:
@@ -65,7 +66,8 @@ def annexure_b_flowables() -> list:
     ]
 
 
-def annexure_c_flowables(client_name: str, client_sig_bytes: bytes | None) -> list:
+def annexure_c_flowables(client_name: str, client_sig_bytes: bytes | None,
+                          sigmeta: SigMetaState | None = None) -> list:
     """VEVO consent form + client acknowledgement box.
 
     The date field is intentionally left blank -- winzoylegal_new only
@@ -83,13 +85,17 @@ def annexure_c_flowables(client_name: str, client_sig_bytes: bytes | None) -> li
     if client_sig_bytes:
         sig_content = _scaled_image(client_sig_bytes, sig_box_w - 8, sig_box_h - 8)
     else:
-        sig_content = ""
+        sig_content = Spacer(sig_box_w - 8, sig_box_h - 8)
+    date_content = Spacer(sig_box_w - 8, 10)
+    if sigmeta is not None:
+        sig_content = MeasuredBox(sig_content, sigmeta.annex_c_sig_recorder())
+        date_content = MeasuredBox(date_content, sigmeta.annex_c_date_recorder())
 
     ack_table = Table(
         [
             [PT("Client Name:", name_style), PT(client_name or "", value_style), ""],
             [PT("Client Signature:", name_style), sig_content, ""],
-            [PT("Date:", name_style), "", ""],
+            [PT("Date:", name_style), date_content, ""],
         ],
         colWidths=[95, sig_box_w, box_w - 95 - sig_box_w],
         rowHeights=[box_h * 0.32, box_h * 0.5, box_h * 0.18],

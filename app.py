@@ -103,22 +103,127 @@ ADAPTERS: dict[str, callable] = {  # type: ignore[type-arg]
 # folded into VALIDATORS/ADAPTERS above. See costagreements/layout.py for
 # why (the "spacing between content and the signature/initials/date block"
 # bug class this replaces).
+from costagreements.builders.art import ArtCostAgreementData, apply_art_normalisations, build_art_cost_agreement, validate_art_cost_agreement
+from costagreements.builders.bfa import BfaCostAgreementData, apply_bfa_normalisations, build_bfa_cost_agreement, validate_bfa_cost_agreement
+from costagreements.builders.client_agreement import (
+    ClientAgreementData,
+    apply_client_agreement_normalisations,
+    build_client_agreement,
+    validate_client_agreement,
+)
+from costagreements.builders.divorce import (
+    DivorceCostAgreementData,
+    apply_divorce_normalisations,
+    build_divorce_cost_agreement,
+    validate_divorce_cost_agreement,
+)
 from costagreements.builders.general import build_general_cost_agreement
+from costagreements.builders.jrp import JrpCostAgreementData, apply_jrp_normalisations, build_jrp_cost_agreement, validate_jrp_cost_agreement
+from costagreements.builders.partner_visa import (
+    PartnerVisaCostAgreementData,
+    apply_partner_visa_normalisations,
+    build_partner_visa_cost_agreement,
+    validate_partner_visa_cost_agreement,
+)
+from costagreements.builders.skilled_visa import (
+    SkilledVisaCostAgreementData,
+    apply_skilled_visa_normalisations,
+    build_skilled_visa_cost_agreement,
+    validate_skilled_visa_cost_agreement,
+)
+from costagreements.builders.skills_assessment import (
+    SkillsAssessmentCostAgreementData,
+    apply_skills_assessment_normalisations,
+    build_skills_assessment_cost_agreement,
+    validate_skills_assessment_cost_agreement,
+)
+from costagreements.builders.skills_assessment_186 import (
+    SkillsAssessment186CostAgreementData,
+    apply_skills_assessment_186_normalisations,
+    build_skills_assessment_186_cost_agreement,
+    validate_skills_assessment_186_cost_agreement,
+)
+from costagreements.builders.skills_assessment_only import (
+    SkillsAssessmentOnlyCostAgreementData,
+    apply_skills_assessment_only_normalisations,
+    build_skills_assessment_only_cost_agreement,
+    validate_skills_assessment_only_cost_agreement,
+)
+from costagreements.builders.visa_482 import (
+    Visa482CostAgreementData,
+    apply_visa_482_normalisations,
+    build_visa_482_cost_agreement,
+    validate_visa_482_cost_agreement,
+)
+from costagreements.builders.visa_870 import (
+    Visa870CostAgreementData,
+    apply_visa_870_normalisations,
+    build_visa_870_cost_agreement,
+    validate_visa_870_cost_agreement,
+)
 from costagreements.schema import GeneralCostAgreementData
 from costagreements.validate import apply_normalisations as apply_ca_normalisations
 from costagreements.validate import validate_general_cost_agreement
 
 COST_AGREEMENT_BUILDERS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": build_general_cost_agreement,
+    "client_agreement": build_client_agreement,
+    "art": build_art_cost_agreement,
+    "jrp": build_jrp_cost_agreement,
+    "skills_assessment_only": build_skills_assessment_only_cost_agreement,
+    "partner_visa": build_partner_visa_cost_agreement,
+    "skilled_visa": build_skilled_visa_cost_agreement,
+    "skills_assessment": build_skills_assessment_cost_agreement,
+    "skills_assessment_186": build_skills_assessment_186_cost_agreement,
+    "bfa": build_bfa_cost_agreement,
+    "divorce": build_divorce_cost_agreement,
+    "visa_482": build_visa_482_cost_agreement,
+    "visa_870": build_visa_870_cost_agreement,
 }
 COST_AGREEMENT_SCHEMAS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": GeneralCostAgreementData.from_payload,
+    "client_agreement": ClientAgreementData.from_payload,
+    "art": ArtCostAgreementData.from_payload,
+    "jrp": JrpCostAgreementData.from_payload,
+    "skills_assessment_only": SkillsAssessmentOnlyCostAgreementData.from_payload,
+    "partner_visa": PartnerVisaCostAgreementData.from_payload,
+    "skilled_visa": SkilledVisaCostAgreementData.from_payload,
+    "skills_assessment": SkillsAssessmentCostAgreementData.from_payload,
+    "skills_assessment_186": SkillsAssessment186CostAgreementData.from_payload,
+    "bfa": BfaCostAgreementData.from_payload,
+    "divorce": DivorceCostAgreementData.from_payload,
+    "visa_482": Visa482CostAgreementData.from_payload,
+    "visa_870": Visa870CostAgreementData.from_payload,
 }
 COST_AGREEMENT_VALIDATORS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": validate_general_cost_agreement,
+    "client_agreement": validate_client_agreement,
+    "art": validate_art_cost_agreement,
+    "jrp": validate_jrp_cost_agreement,
+    "skills_assessment_only": validate_skills_assessment_only_cost_agreement,
+    "partner_visa": validate_partner_visa_cost_agreement,
+    "skilled_visa": validate_skilled_visa_cost_agreement,
+    "skills_assessment": validate_skills_assessment_cost_agreement,
+    "skills_assessment_186": validate_skills_assessment_186_cost_agreement,
+    "bfa": validate_bfa_cost_agreement,
+    "divorce": validate_divorce_cost_agreement,
+    "visa_482": validate_visa_482_cost_agreement,
+    "visa_870": validate_visa_870_cost_agreement,
 }
 COST_AGREEMENT_NORMALISERS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": apply_ca_normalisations,
+    "client_agreement": apply_client_agreement_normalisations,
+    "art": apply_art_normalisations,
+    "jrp": apply_jrp_normalisations,
+    "skills_assessment_only": apply_skills_assessment_only_normalisations,
+    "partner_visa": apply_partner_visa_normalisations,
+    "skilled_visa": apply_skilled_visa_normalisations,
+    "skills_assessment": apply_skills_assessment_normalisations,
+    "skills_assessment_186": apply_skills_assessment_186_normalisations,
+    "bfa": apply_bfa_normalisations,
+    "divorce": apply_divorce_normalisations,
+    "visa_482": apply_visa_482_normalisations,
+    "visa_870": apply_visa_870_normalisations,
 }
 
 
@@ -337,15 +442,20 @@ def cost_agreement_fill(agreement_type: str):
         resp.headers["X-Cache"] = "hit"
         return resp
 
-    schema_fn = COST_AGREEMENT_SCHEMAS[agreement_type]
-    data = schema_fn(body)
+    # Cover schema construction + the cache write too, not just the build
+    # itself -- any unhandled exception here would otherwise surface as
+    # Flask's generic HTML 500 page, which a caller saving the response
+    # straight to a .pdf file would see as "the PDF is corrupted" rather
+    # than a diagnosable error.
     try:
+        schema_fn = COST_AGREEMENT_SCHEMAS[agreement_type]
+        data = schema_fn(body)
         pdf_bytes = builder(data)
+        out_path = CACHE.put(key, pdf_bytes)
     except Exception:
         log.exception("cost agreement build failed", extra={"agreement_type": agreement_type})
         return jsonify({"error": "PDF generation failed"}), 500
 
-    out_path = CACHE.put(key, pdf_bytes)
     log.info("cache miss", extra={"agreement_type": agreement_type, "cache_hit": False})
     resp = send_file(out_path, mimetype="application/pdf", as_attachment=False)
     resp.headers["X-Cache-Key"] = key

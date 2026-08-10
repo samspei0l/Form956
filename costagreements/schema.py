@@ -36,6 +36,7 @@ class GeneralCostAgreementData:
     lpn: str = ""
     rep_signature_data: str | None = None      # base64 data URI -- see costagreements/validate.py
     client_signature_data: str | None = None    # base64 data URI
+    rep_signature_url: str | None = None        # metadata passthrough only, never fetched -- see sigmeta.py
 
     staff_note: str = ""
     ack_languages: list[str] = field(default_factory=list)
@@ -71,6 +72,7 @@ class GeneralCostAgreementData:
             lpn=str(payload.get("lpn") or ""),
             rep_signature_data=payload.get("rep_signature_data") or None,
             client_signature_data=payload.get("client_signature_data") or None,
+            rep_signature_url=payload.get("rep_signature_url") or None,
             staff_note=str(payload.get("staff_note") or ""),
             ack_languages=list(ack_languages),
             translation_banner_text=str(payload.get("translation_banner_text") or ""),

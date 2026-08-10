@@ -90,6 +90,24 @@ def draw_translation_banner(canvas, doc, y: float, text: str) -> None:
     canvas.restoreState()
 
 
+def draw_page_initials_stamp(canvas, doc) -> None:
+    """Opt-in per-page 'Client Initials: ___  Date: ___' line drawn just
+    above the footer on every page -- mirrors buildVisa482CostAgreementPdf.ts's
+    ``drawPageSignatureStamp()``, called from that builder's own onPage
+    callback (not wired in globally; most agreement types don't use it).
+    This is a static print-and-initial line baked in at build time, not
+    the two-stage remote-signing post-signing stamp (out of scope here --
+    see costagreements/sigmeta.py for how remote signing is handled instead).
+    """
+    canvas.saveState()
+    stamp_y = L.FOOTER_H + 62
+    canvas.setFont(L.FONT_REGULAR, 8)
+    canvas.setFillColor(L.MUTED)
+    canvas.drawString(L.ML, stamp_y, "Client Initials: _______________")
+    canvas.drawRightString(L.PAGE_W - L.MR, stamp_y, "Date: ____________")
+    canvas.restoreState()
+
+
 def _draw_footer(canvas, doc_id: str, generated_at: str, page_num: int, total_pages: int) -> None:
     canvas.saveState()
     W = L.PAGE_W

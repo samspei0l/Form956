@@ -45,6 +45,7 @@ from ..components import (
 )
 from ..money import apply_vac_surcharge, fmt_amt, parse_amt, sum_amounts
 from ..schema import GeneralCostAgreementData
+from ..sigmeta import SigMetaState
 
 
 def build_general_cost_agreement(data: GeneralCostAgreementData) -> bytes:
@@ -197,11 +198,13 @@ def _build_story(data: GeneralCostAgreementData, today_short: str) -> list:
     client_sig_bytes = decode_data_uri(data.client_signature_data)
     rep_sig_bytes = decode_data_uri(data.rep_signature_data)
     signed_date = data.date or today_short
+    sigmeta = SigMetaState()
     story.append(signature_block(
         client_name=data.client_name, rep_name=data.rep_name,
         capacity=data.capacity, lpn=data.lpn, marn=data.marn,
         client_sig_bytes=client_sig_bytes, rep_sig_bytes=rep_sig_bytes,
         signed_date_text=signed_date, today_text=today_short,
+        sigmeta=sigmeta, rep_signature_url=data.rep_signature_url,
     ))
 
     # ═══════════════════════════════════════ WHAT WE / YOU MUST DO
@@ -222,7 +225,7 @@ def _build_story(data: GeneralCostAgreementData, today_short: str) -> list:
     story.append(PageBreak())
     story.extend(annex.annexure_b_flowables())
     story.append(PageBreak())
-    story.extend(annex.annexure_c_flowables(data.client_name, client_sig_bytes))
+    story.extend(annex.annexure_c_flowables(data.client_name, client_sig_bytes, sigmeta=sigmeta))
     if data.include_annexure_d:
         story.append(PageBreak())
         story.extend(annex.annexure_d_flowables())
