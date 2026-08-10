@@ -33,13 +33,25 @@ log = logging.getLogger("app")
 # Flask are same-origin or proxied).
 try:
     from flask_cors import CORS
+    _CORS_ORIGINS = [
+        re.compile(r"^https://([a-z0-9-]+\.)*lovable\.app$"),
+        "https://pipeline.winzoylegal.com.au",
+        "http://localhost:8080",
+    ]
     CORS(
         app,
-        resources={r"/forms/*": {"origins": [
-            re.compile(r"^https://([a-z0-9-]+\.)*lovable\.app$"),
-            "https://pipeline.winzoylegal.com.au",
-            "http://localhost:8080",
-        ]}},
+        # /cost-agreements/* must be listed here too -- it's a second,
+        # separately-routed capability (see the "cost agreements" section
+        # below) that's easy to add to app.py's routes without remembering
+        # this dict also needs updating. Missing it here doesn't fail
+        # loudly: the route still returns 200 with a real PDF body, but
+        # flask-cors omits Access-Control-Allow-Origin on the response, so
+        # the browser silently blocks the caller from reading it -- it
+        # looks like a network failure client-side, not a CORS one.
+        resources={
+            r"/forms/*": {"origins": _CORS_ORIGINS},
+            r"/cost-agreements/*": {"origins": _CORS_ORIGINS},
+        },
         methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Content-Type", "X-Request-Id"],
         expose_headers=["X-Cache-Key", "X-Cache", "X-Request-Id"],
