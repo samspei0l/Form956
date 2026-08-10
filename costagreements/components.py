@@ -22,6 +22,7 @@ from reportlab.platypus import Flowable, Image, KeepTogether, Paragraph, Spacer,
 
 from . import layout as L
 from .money import fmt_amt
+from .sigmeta import MeasuredBox, SigMetaState
 
 # --------------------------------------------------------------------- text safety
 # User-supplied strings (names, addresses, notes) flow into ReportLab's
@@ -333,12 +334,16 @@ def _signature_box(sig_bytes: bytes | None, box_w: float, box_h: float) -> Table
 
 def _signature_column(heading_text: str, name: str, sig_bytes: bytes | None, date_text: str,
                        box_w: float, box_h: float,
-                       capacity: str | None = None, lpn: str | None = None, marn: str | None = None) -> list:
+                       capacity: str | None = None, lpn: str | None = None, marn: str | None = None,
+                       box_recorder=None) -> list:
     heading_style = ParagraphStyle("CA_SigColHead", fontName=L.FONT_BOLD, fontSize=9.5, textColor=L.NAVY)
+    box = _signature_box(sig_bytes, box_w, box_h)
+    if box_recorder is not None:
+        box = MeasuredBox(box, box_recorder)
     flows: list = [
         PT(heading_text, heading_style),
         Spacer(1, 10),
-        _signature_box(sig_bytes, box_w, box_h),
+        box,
         Spacer(1, 12),
         _underlined_line(f"Name: {name or ''}", box_w),
         Spacer(1, 6),
@@ -358,11 +363,31 @@ def _signature_column(heading_text: str, name: str, sig_bytes: bytes | None, dat
     return flows
 
 
+def _sigmeta_extras(sigmeta: SigMetaState | None, client_name, rep_name, capacity, lpn, marn,
+                     rep_signature_url: str | None) -> tuple:
+    """Seeds the non-positional SIGMETA fields and returns the (client, rep)
+    box recorder callbacks -- (None, None) if no sigmeta state was passed."""
+    if sigmeta is None:
+        return None, None
+    sigmeta.fields.update(
+        repName=rep_name or "", clientName=client_name or "",
+        repUrl=rep_signature_url or "", lpn=lpn or "", marn=marn or "",
+        capacity=capacity or "",
+    )
+    return sigmeta.client_box_recorder(), sigmeta.rep_box_recorder()
+
+
 def signature_block(client_name: str, rep_name: str, capacity: str | None, lpn: str | None, marn: str | None,
                      client_sig_bytes: bytes | None, rep_sig_bytes: bytes | None,
-                     signed_date_text: str, today_text: str) -> KeepTogether:
+                     signed_date_text: str, today_text: str,
+                     sigmeta: SigMetaState | None = None,
+                     rep_signature_url: str | None = None) -> KeepTogether:
     """The full 'client initials / signature / date' + 'admin staff
     signature' block, as a single KeepTogether unit -- see module docstring.
+
+    ``sigmeta``, if given, records the client/rep box positions into the
+    PDF's SIGMETA metadata (see costagreements/sigmeta.py) once ReportLab
+    actually lays them out.
     """
     box_w = (L.CONTENT_W - 24) / 2
     sig_box_h = 82
@@ -376,11 +401,15 @@ def signature_block(client_name: str, rep_name: str, capacity: str | None, lpn: 
         L.STYLE_BODY_MUTED_SMALL,
     )
 
+    client_recorder, rep_recorder = _sigmeta_extras(
+        sigmeta, client_name, rep_name, capacity, lpn, marn, rep_signature_url,
+    )
+
     client_col = _signature_column("Client Signature", client_name, client_sig_bytes,
-                                    signed_date_text, box_w, sig_box_h)
+                                    signed_date_text, box_w, sig_box_h, box_recorder=client_recorder)
     rep_col = _signature_column("FOR WINZOY LEGAL", rep_name, rep_sig_bytes,
                                  today_text, box_w, sig_box_h,
-                                 capacity=capacity, lpn=lpn, marn=marn)
+                                 capacity=capacity, lpn=lpn, marn=marn, box_recorder=rep_recorder)
 
     cols_table = Table([[client_col, rep_col]], colWidths=[box_w, box_w])
     cols_table.setStyle(TableStyle([
@@ -393,3 +422,63 @@ def signature_block(client_name: str, rep_name: str, capacity: str | None, lpn: 
     ]))
 
     return KeepTogether([banner, Spacer(1, 14), intro, Spacer(1, 16), cols_table])
+
+
+def compact_signature_block(client_name: str, rep_name: str, capacity: str | None,
+                             lpn: str | None, marn: str | None,
+                             client_sig_bytes: bytes | None, rep_sig_bytes: bytes | None,
+                             signed_date_text: str, today_text: str,
+                             sig_h: float = 44,
+                             sigmeta: SigMetaState | None = None,
+                             rep_signature_url: str | None = None) -> KeepTogether:
+    """The shorter signature block (no 'SIGNATURES' banner/intro sentence)
+    used by Visa 482 / Visa 870 / Skills Assessment Only -- same
+    client-initials/signature/date + admin-staff-signature content and the
+    same KeepTogether guarantee, just more compact vertically. Mirrors
+    winzoylegal_new's ``compactSignatureBlockHeight()`` callers."""
+    box_w = (L.CONTENT_W - 24) / 2
+
+    client_recorder, rep_recorder = _sigmeta_extras(
+        sigmeta, client_name, rep_name, capacity, lpn, marn, rep_signature_url,
+    )
+
+    client_col = _signature_column("Client Signature", client_name, client_sig_bytes,
+                                    signed_date_text, box_w, sig_h, box_recorder=client_recorder)
+    rep_col = _signature_column("FOR WINZOY LEGAL", rep_name, rep_sig_bytes,
+                                 today_text, box_w, sig_h,
+                                 capacity=capacity, lpn=lpn, marn=marn, box_recorder=rep_recorder)
+
+    cols_table = Table([[client_col, rep_col]], colWidths=[box_w, box_w])
+    cols_table.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (0, 0), 24),
+        ("RIGHTPADDING", (1, 0), (1, 0), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+
+    return KeepTogether([cols_table])
+
+
+def initials_row(client_label: str = "Client Initials:", rep_label: str = "Representative Initials:") -> Table:
+    """Explicit 'Client Initials: ____  Representative Initials: ____' row
+    used by Visa 870's page 1, distinct from the full signature block --
+    mirrors buildVisa870CostAgreementPdf.ts's dedicated initials line."""
+    half = L.CONTENT_W / 2
+    data = [[
+        PT(client_label, L.STYLE_BODY_SMALL),
+        PT(rep_label, L.STYLE_BODY_SMALL),
+    ]]
+    t = Table(data, colWidths=[half, half])
+    t.setStyle(TableStyle([
+        ("LINEBELOW", (0, 0), (0, 0), 0.5, L.MUTED),
+        ("LINEBELOW", (1, 0), (1, 0), 0.5, L.MUTED),
+        ("LEFTPADDING", (0, 0), (0, 0), 0),
+        ("RIGHTPADDING", (0, 0), (0, 0), 20),
+        ("LEFTPADDING", (1, 0), (1, 0), 20),
+        ("RIGHTPADDING", (1, 0), (1, 0), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return t
