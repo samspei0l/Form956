@@ -421,7 +421,7 @@ def signature_block(client_name: str, rep_name: str, capacity: str | None, lpn: 
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
 
-    return KeepTogether([banner, Spacer(1, 14), intro, Spacer(1, 16), cols_table])
+    return KeepTogether([Spacer(1, L.SIG_BLOCK_GAP), banner, Spacer(1, 14), intro, Spacer(1, 16), cols_table])
 
 
 def compact_signature_block(client_name: str, rep_name: str, capacity: str | None,
@@ -458,7 +458,7 @@ def compact_signature_block(client_name: str, rep_name: str, capacity: str | Non
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
 
-    return KeepTogether([cols_table])
+    return KeepTogether([Spacer(1, L.SIG_BLOCK_GAP), cols_table])
 
 
 def initials_row(client_label: str = "Client Initials:", rep_label: str = "Representative Initials:") -> Table:

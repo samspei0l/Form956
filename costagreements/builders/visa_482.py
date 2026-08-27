@@ -226,6 +226,12 @@ class Visa482CostAgreementData:
     # "Applications included in this engagement" checkbox row (optional)
     applications_included: dict | None = None  # {"sbs": bool, "nomination": bool, "visa": bool}
 
+    # Sponsoring business / nominee name -- shown directly under the parties
+    # table only when the Nomination application is part of this engagement
+    # (mirrors buildVisa482CostAgreementPdf.ts's own
+    # `applicationsIncluded?.nomination && nomineeName` guard).
+    nominee_name: str = ""
+
     # Signature block
     marn: str = ""
     lpn: str = ""
@@ -296,6 +302,7 @@ class Visa482CostAgreementData:
             payment_stage3_amount=str(payload.get("payment_stage3_amount") or ""),
             extra_stages=extra_stages,
             applications_included=applications_included,
+            nominee_name=str(payload.get("nominee_name") or ""),
             marn=str(payload.get("marn") or ""),
             lpn=str(payload.get("lpn") or ""),
             rep_signature_data=payload.get("rep_signature_data") or None,
@@ -443,6 +450,9 @@ _STYLE_APP_LABEL = ParagraphStyle(
 _STYLE_APP_HEADING = ParagraphStyle(
     "V482_AppHeading", fontName=L.FONT_BOLD, fontSize=9.5, leading=12,
     textColor=L.NAVY, alignment=1,
+)
+_STYLE_NOMINEE = ParagraphStyle(
+    "V482_Nominee", fontName=L.FONT_REGULAR, fontSize=10, leading=13, textColor=L.BLACK,
 )
 
 
@@ -707,7 +717,19 @@ def _build_story(data: Visa482CostAgreementData, today_short: str) -> list:
     story.append(Spacer(1, 16))
 
     story.append(parties_table(data.date, data.our_ref, data.client_name, data.client_address))
-    story.append(Spacer(1, 24))
+
+    # Nominee line -- only when a Nomination application is part of this
+    # engagement, matching buildVisa482CostAgreementPdf.ts's own
+    # `applicationsIncluded?.nomination && nomineeName` guard.
+    if (data.applications_included or {}).get("nomination") and data.nominee_name.strip():
+        story.append(Spacer(1, 10))
+        story.append(P(
+            f'<font color="{L.hex_of(L.NAVY)}"><b>Nominee - </b></font>{esc(data.nominee_name.strip())}',
+            _STYLE_NOMINEE,
+        ))
+        story.append(Spacer(1, 14))
+    else:
+        story.append(Spacer(1, 24))
 
     # ── Intro paragraph ─────────────────────────────
     story.append(PT(
