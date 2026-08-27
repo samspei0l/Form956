@@ -40,6 +40,15 @@ FRAME_BOTTOM_PAD = 20
 FRAME_Y = FOOTER_H + FRAME_BOTTOM_PAD
 FRAME_HEIGHT = PAGE_H - HEADER_H - FRAME_TOP_PAD - FRAME_Y
 
+# Minimum vertical whitespace (pt) reserved between the last content drawn
+# above the signature block and the block's own first line. KeepTogether
+# (see components.signature_block()) guarantees the block never gets split
+# across a page boundary, but says nothing about how close it can sit to
+# whatever flowable immediately precedes it -- without an explicit Spacer,
+# two flowables can be laid out flush against each other. Mirrors
+# winzoylegal_new's SIG_BLOCK_GAP (_shared/pdfLayout.ts).
+SIG_BLOCK_GAP = 20
+
 # --------------------------------------------------------------------- brand palette
 # 0-1 scale, matching winzoylegal_new's rgb(...) constants exactly.
 BLACK = Color(0, 0, 0)

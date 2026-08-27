@@ -499,9 +499,6 @@ def _build_story(data: SkillsAssessmentOnlyCostAgreementData, today_short: str) 
     rep_sig_bytes = decode_data_uri(data.rep_signature_data)
     signed_date = data.date or today_short
     sigmeta = SigMetaState()
-    story.append(P("Client Signature", L.STYLE_H2))
-    story.append(P("FOR WINZOY LEGAL", L.STYLE_H2)) if False else None  # placeholder removed below
-    story.pop() if story and story[-1] is None else None
     story.append(compact_signature_block(
         client_name=data.client_name, rep_name=data.rep_name,
         capacity=data.capacity, lpn=data.lpn, marn=data.marn,
