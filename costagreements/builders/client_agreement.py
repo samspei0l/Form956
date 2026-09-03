@@ -40,6 +40,7 @@ from .. import annexures as annex
 from .. import chrome
 from .. import layout as L
 from ..components import (
+    bind_headings,
     P,
     PT,
     bank_details_box,
@@ -253,6 +254,7 @@ def build_client_agreement(data: ClientAgreementData) -> bytes:
         title="Costs Disclosure and Costs Agreement", author="Winzoy Legal",
         topMargin=0, bottomMargin=0, leftMargin=0, rightMargin=0,
     )
+    bind_headings(story)
     doc.build(story, canvasmaker=chrome.make_canvas_factory(doc_id, generated_at))
     return buf.getvalue()
 
@@ -360,9 +362,9 @@ def _build_story(data: ClientAgreementData, today_short: str) -> list:
     story.append(P("PAYMENT SCHEDULE", L.STYLE_H2))
     story.append(Spacer(1, 4))
     story.append(PT(
-        "You will promptly pay the agreeable amount before the lodgment of your "
-        "visa. You will also upon our request make payment for any disbursement "
-        "which is incurred during the course of our work.",
+        "You are required to pay our fees immediately after your application has been "
+        "completely prepared. You will also, upon our request, make payment for any "
+        "disbursement which is incurred during the course of our work.",
         L.STYLE_BODY_SMALL,
     ))
     story.append(Spacer(1, 14))

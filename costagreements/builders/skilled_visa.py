@@ -117,6 +117,7 @@ from .. import annexures as annex
 from .. import chrome
 from .. import layout as L
 from ..components import (
+    bind_headings,
     P,
     PT,
     bank_details_box,
@@ -360,6 +361,7 @@ def build_skilled_visa_cost_agreement(data: SkilledVisaCostAgreementData) -> byt
         title="Costs Disclosure and Costs Agreement (Skilled Visa)", author="Winzoy Legal",
         topMargin=0, bottomMargin=0, leftMargin=0, rightMargin=0,
     )
+    bind_headings(story)
     doc.build(story, canvasmaker=chrome.make_canvas_factory(doc_id, generated_at))
     return buf.getvalue()
 
@@ -584,6 +586,13 @@ def _build_story(data: SkilledVisaCostAgreementData, today_short: str) -> list:
         "process at a later stage.",
         _STYLE_ITALIC_SMALL,
     ))
+    story.append(Spacer(1, 8))
+    story.append(PT(
+        "You are required to pay our fees immediately after your application has been "
+        "completely prepared. You will also, upon our request, make payment for any "
+        "disbursement which is incurred during the course of our work.",
+        L.STYLE_BODY_SMALL,
+    ))
     story.append(Spacer(1, 14))
 
     # ── G. Breach of Payment Schedule and Termination ──
@@ -784,6 +793,13 @@ def _regulatory_compliance() -> list:
             "the firm cannot guarantee the successful approval of any visa application, "
             "as all final decisions rest solely with the Department of Home Affairs.",
         ),
+        (
+            "d) Order of Precedence:",
+            "Where services are provided by a Registered Migration Agent (RMA), the "
+            "provisions of the Migration Act 1958 and the Migration Agents Code of "
+            "Conduct 2021 shall prevail over any terms in this agreement referencing "
+            "the Legal Profession Uniform Law (NSW) or legal practitioner cost rules.",
+        ),
     ]
     for heading, body in blocks:
         flows.append(PT(heading, L.STYLE_TERMS_HEAD))
@@ -856,7 +872,9 @@ _GENERAL_TERMS: list[tuple[str, str]] = [
         "It is our policy that, when acting for new clients, we do one or more of "
         "the following:\n"
         "(a) approve credit;\n"
-        "(b) ask the client for their credit card details.\n"
+        "(b) Our professional fees are invoiced upon completion and lodgement of "
+        "your application. We do not require or hold advance payments in trust "
+        "for our professional fees prior to the completion of the agreed work.\n"
         "Unless otherwise agreed with you, we may determine not to incur fees or "
         "expenses in excess of the amount that we hold in trust on your behalf or "
         "for which credit is approved.",

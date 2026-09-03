@@ -31,6 +31,31 @@ from .sigmeta import MeasuredBox, SigMetaState
 # (bullet joiners, <br/> line breaks) is added after escaping the parts.
 
 
+def bind_headings(story: list) -> list:
+    """Stop headings being stranded as the last thing on a page.
+
+    ``layout.py`` sets ``keepWithNext`` on the heading styles, and
+    ReportLab's ``handle_keepWithNext()`` walks *consecutive* flowables
+    that carry the flag before pulling in one more. Builders write
+    ``heading, Spacer, content``, so the chain stops at the Spacer and the
+    heading is kept with nothing but blank space -- the content still
+    breaks to the next page. Marking that in-between Spacer extends the
+    chain to the real content.
+
+    Mutates and returns ``story`` so it can be used inline at the
+    ``doc.build()`` call site.
+    """
+    for i, f in enumerate(story[:-1]):
+        if not getattr(f, "getKeepWithNext", None) or not f.getKeepWithNext():
+            continue
+        j = i + 1
+        # bridge any run of spacers between the heading and its content
+        while j < len(story) - 1 and isinstance(story[j], Spacer):
+            story[j].__dict__["keepWithNext"] = 1
+            j += 1
+    return story
+
+
 def esc(text) -> str:
     return _xml_escape(str(text if text is not None else ""))
 
@@ -257,9 +282,14 @@ def staff_note_box(note_text: str) -> Table | None:
         return None
     label_style = ParagraphStyle("CA_NoteLabel", fontName=L.FONT_BOLD, fontSize=8, textColor=L.NAVY)
     body_style = ParagraphStyle("CA_NoteBody", fontName=L.FONT_REGULAR, fontSize=9, leading=12, textColor=L.BLACK)
+    # repeatRows=1: a long note splits across pages, and without this the
+    # "NOTE" label row can land alone at the foot of a page with the body
+    # overleaf. Repeating it keeps the label attached to whatever body
+    # rows follow it on each page.
     t = Table(
         [[P("NOTE", label_style)], [P(multiline_html(note_text), body_style)]],
         colWidths=[L.CONTENT_W],
+        repeatRows=1,
     )
     t.setStyle(TableStyle([
         ("BOX", (0, 0), (-1, -1), 0.6, L.NOTE_BORDER),
