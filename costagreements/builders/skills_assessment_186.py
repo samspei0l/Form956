@@ -901,10 +901,7 @@ _GENERAL_TERMS: list[tuple[str, str]] = [
         "(a) approve credit;\n"
         "(b) Our professional fees are invoiced upon completion and lodgement of "
         "your application. We do not require or hold advance payments in trust "
-        "for our professional fees prior to the completion of the agreed work.\n"
-        "Unless otherwise agreed with you, we may determine not to incur fees or "
-        "expenses in excess of the amount that we hold in trust on your behalf or "
-        "for which credit is approved.",
+        "for our professional fees prior to the completion of the agreed work.",
     ),
     (
         "8 Retention of Your Documents and Electronic Files",
