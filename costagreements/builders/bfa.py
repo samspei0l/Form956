@@ -81,6 +81,7 @@ from .. import annexures as annex
 from .. import chrome
 from .. import layout as L
 from ..components import (
+    bind_headings,
     P,
     PT,
     bank_details_box,
@@ -290,6 +291,7 @@ def build_bfa_cost_agreement(data: BfaCostAgreementData) -> bytes:
         title="Costs Disclosure and Costs Agreement (BFA)", author="Winzoy Legal",
         topMargin=0, bottomMargin=0, leftMargin=0, rightMargin=0,
     )
+    bind_headings(story)
     doc.build(story, canvasmaker=chrome.make_canvas_factory(doc_id, generated_at))
     return buf.getvalue()
 
@@ -428,9 +430,8 @@ def _build_story(data: BfaCostAgreementData, today_short: str) -> list:
     story.append(Spacer(1, 12))
     story.append(PT(
         "You are required to pay our fees immediately after your application has been "
-        "completely prepared, finalised, and formally lodged. You will also, upon our "
-        "request, make payment for any disbursement which is incurred during the course "
-        "of our work.",
+        "completely prepared. You will also, upon our request, make payment for any "
+        "disbursement which is incurred during the course of our work.",
         _STYLE_PAYMENT_NOTE,
     ))
     story.append(Spacer(1, 14))
@@ -550,7 +551,9 @@ _BFA_TERMS: list[tuple[str, str]] = [
         "It is our policy that, when acting for new clients, we do one or more of "
         "the following:\n"
         "• approve credit;\n"
-        "• ask the client for their credit card details.\n"
+        "• Our professional fees are invoiced upon completion and lodgement of "
+        "your application. We do not require or hold advance payments in trust "
+        "for our professional fees prior to the completion of the agreed work.\n"
         "Unless otherwise agreed with you, we may determine not to incur fees or "
         "expenses in excess of the amount that we hold in trust on your behalf or "
         "for which credit is approved.",

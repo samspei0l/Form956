@@ -112,6 +112,18 @@ STYLE_TERMS_HEAD = _style("CA_TermsHead", fontName=FONT_BOLD, fontSize=11, leadi
 STYLE_TERMS_TITLE = _style("CA_TermsTitle", fontName=FONT_BOLD, fontSize=13, leading=17, textColor=NAVY)
 STYLE_TERMS_BODY = _style("CA_TermsBody", fontSize=9.5, leading=12.5)
 
+# A heading must never be the last thing on a page with the content it
+# introduces stranded overleaf. ReportLab's ``Paragraph.getKeepWithNext()``
+# reads this flag off the style, and ``BaseDocTemplate.handle_flowable``
+# then keeps the heading together with the flowable that follows it --
+# pushing both to the next page rather than splitting them. Set here
+# rather than per-builder so all 13 agreement types inherit it, the same
+# way ``components.signature_block()`` uses KeepTogether for the
+# signature band (see this module's docstring).
+for _heading_style in (STYLE_TITLE, STYLE_H2, STYLE_H3, STYLE_CENTER_BOLD,
+                        STYLE_TERMS_HEAD, STYLE_TERMS_TITLE):
+    _heading_style.keepWithNext = 1
+
 
 def hex_of(color: Color) -> str:
     """'#rrggbb' for use inside Paragraph inline <font color="..."> markup."""
