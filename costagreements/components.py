@@ -14,6 +14,8 @@ version (see costagreements/layout.py for the full rationale):
 from __future__ import annotations
 
 import io
+import re
+from html.parser import HTMLParser
 from xml.sax.saxutils import escape as _xml_escape
 
 from reportlab.lib.styles import ParagraphStyle
@@ -66,6 +68,97 @@ def bulleted_html(items: list[str], gap: str = "<br/>") -> str:
 
 def multiline_html(text: str) -> str:
     return "<br/>".join(esc(line) for line in (text or "").split("\n"))
+
+
+_HTML_TAG_RE = re.compile(r"<[a-zA-Z/][^>]*>")
+_INLINE_TAG_MAP = {
+    "b": "b", "strong": "b",
+    "i": "i", "em": "i",
+    "u": "u",
+    "s": "strike", "strike": "strike", "del": "strike",
+}
+_BLOCK_BREAK_TAGS = {"p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li"}
+
+
+class _RichTextToParagraphMarkup(HTMLParser):
+    """Converts TipTap/ProseMirror HTML into ReportLab Paragraph markup.
+
+    Only a safelisted set of inline tags round-trip into ReportLab's own
+    ``<b>``/``<i>``/``<u>``/``<strike>`` tags; colour, font-size and
+    alignment (all present in the frontend's RichTextEditor toolbar) are
+    dropped since Paragraph markup has no equivalent without per-run
+    style objects. Bullet and numbered lists become "* " / "1. "-prefixed
+    lines -- ReportLab Paragraph has no native list flowable that composes
+    inside a Table cell the way staff_note_box() needs. All text content
+    goes through esc() before being placed between markup tags, so raw
+    '<'/'&' typed by staff (or anything else in the HTML) can't be
+    misread as ReportLab markup.
+    """
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.out: list[str] = []
+        self._list_stack: list[str] = []
+        self._list_counters: list[int] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("ul", "ol"):
+            self._list_stack.append(tag)
+            self._list_counters.append(0)
+        elif tag == "li":
+            depth = max(0, len(self._list_stack) - 1)
+            indent = "&nbsp;&nbsp;&nbsp;&nbsp;" * depth
+            if self._list_stack and self._list_stack[-1] == "ol":
+                self._list_counters[-1] += 1
+                self.out.append(f"{indent}{self._list_counters[-1]}. ")
+            else:
+                self.out.append(f"{indent}• ")
+        elif tag == "br":
+            self.out.append("<br/>")
+        elif tag in _INLINE_TAG_MAP:
+            self.out.append(f"<{_INLINE_TAG_MAP[tag]}>")
+
+    def handle_endtag(self, tag):
+        if tag in ("ul", "ol"):
+            if self._list_stack:
+                self._list_stack.pop()
+                self._list_counters.pop()
+        elif tag in _BLOCK_BREAK_TAGS:
+            self.out.append("<br/>")
+        elif tag in _INLINE_TAG_MAP:
+            self.out.append(f"</{_INLINE_TAG_MAP[tag]}>")
+
+    def handle_data(self, data):
+        if data:
+            self.out.append(esc(data))
+
+
+def rich_text_to_paragraph_markup(text: str) -> str:
+    """Render a staff-authored rich-text field (bold/italic/underline/
+    strike, bullet & numbered lists, paragraph breaks) as ReportLab
+    Paragraph markup.
+
+    The frontend's RichTextEditor always emits HTML (``<ul><li>...`` for a
+    bullet list, ``<p>...</p>`` per line) -- it never contains a literal
+    ``\\n``, so ``multiline_html()``'s ``split("\\n")`` treated the whole
+    blob as one line and ``esc()`` turned every tag into visible text: a
+    single flat, tag-garbled paragraph instead of the bullets staff
+    actually typed. Falls back to ``multiline_html()`` for values with no
+    HTML tags at all -- draft data saved before the rich-text editor
+    existed is plain, newline-separated text.
+    """
+    if not text or not text.strip():
+        return ""
+    if not _HTML_TAG_RE.search(text):
+        return multiline_html(text)
+    parser = _RichTextToParagraphMarkup()
+    parser.feed(text)
+    parser.close()
+    markup = "".join(parser.out)
+    markup = re.sub(r"(?:<br/>)+", "<br/>", markup)
+    markup = re.sub(r"^(<br/>)+", "", markup)
+    markup = re.sub(r"(<br/>)+$", "", markup)
+    return markup
 
 
 def P(text: str, style: ParagraphStyle) -> Paragraph:
@@ -287,7 +380,7 @@ def staff_note_box(note_text: str) -> Table | None:
     # overleaf. Repeating it keeps the label attached to whatever body
     # rows follow it on each page.
     t = Table(
-        [[P("NOTE", label_style)], [P(multiline_html(note_text), body_style)]],
+        [[P("NOTE", label_style)], [P(rich_text_to_paragraph_markup(note_text), body_style)]],
         colWidths=[L.CONTENT_W],
         repeatRows=1,
     )

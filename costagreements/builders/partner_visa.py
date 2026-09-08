@@ -93,6 +93,7 @@ renders empty/bordered for print-and-sign.
 from __future__ import annotations
 
 import io
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import date as _date
@@ -413,10 +414,34 @@ def _payment_schedule_table(stages: list[tuple[str, str]]) -> Table:
     return t
 
 
+_LEADING_STAGE_NUMBER = re.compile(r"^\d+\.\s")
+
+
+def _numbered_stage_label(raw_label: str, n: int, fallback: str) -> str:
+    """Prefix a staff-typed stage label with its position number.
+
+    Stages 1/2 come pre-filled with a numbered default ("1. Before
+    lodgement time") that staff edit in place, so the number is already
+    part of whatever they type. Stage 3 and any "+Add Stage" extras start
+    blank -- typing just "Hi" would otherwise render as a bare "Hi" row
+    with no number, unlike every other row in the table. Skip re-adding
+    the prefix if the text already starts with one (typing "3. Hi"
+    verbatim shouldn't become "3. 3. Hi").
+    """
+    text = (raw_label or "").strip()
+    if not text:
+        return fallback
+    if _LEADING_STAGE_NUMBER.match(text):
+        return text
+    return f"{n}. {text}"
+
+
 def _build_payment_stages(data: PartnerVisaCostAgreementData) -> list[tuple[str, str]]:
     stages = [
-        (data.payment_stage1_label or "1. Before lodgement time", f"${fmt_amt(data.payment_stage1_amount)}"),
-        (data.payment_stage2_label or "2. On the lodgement day", f"${fmt_amt(data.payment_stage2_amount)}"),
+        (_numbered_stage_label(data.payment_stage1_label, 1, "1. Before lodgement time"),
+         f"${fmt_amt(data.payment_stage1_amount)}"),
+        (_numbered_stage_label(data.payment_stage2_label, 2, "2. On the lodgement day"),
+         f"${fmt_amt(data.payment_stage2_amount)}"),
     ]
     # Stage 3 has no default text (unlike stages 1/2): it only appears in the
     # PDF if staff actually typed a label or an amount for it. Otherwise an
@@ -425,11 +450,12 @@ def _build_payment_stages(data: PartnerVisaCostAgreementData) -> list[tuple[str,
     # were manually crossing out on printed drafts.
     if data.payment_stage3_label.strip() or data.payment_stage3_amount.strip():
         stages.append((
-            data.payment_stage3_label or "3. Stage",
+            _numbered_stage_label(data.payment_stage3_label, 3, "3. Stage"),
             f"${fmt_amt(data.payment_stage3_amount)}",
         ))
     for i, extra in enumerate(data.extra_stages):
-        label = extra.get("label") or f"{3 + i + 1}. Stage"
+        n = 3 + i + 1
+        label = _numbered_stage_label(extra.get("label"), n, f"{n}. Stage")
         amount = f"${fmt_amt(extra.get('amount'))}"
         stages.append((label, amount))
     return stages
