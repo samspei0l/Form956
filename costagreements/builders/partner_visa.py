@@ -153,7 +153,9 @@ class PartnerVisaCostAgreementData:
     lodgement_uses_client_card: bool = False
     total_cost: str = ""  # present in types.ts; not used in totals math (cost summary is derived, not echoed)
 
-    # Payment schedule (3 editable stages + optional extra stages)
+    # Payment schedule: stages 1/2 always render (with editable default
+    # text); stage 3 and any extra_stages only render if actually filled in
+    # -- see _build_payment_stages().
     payment_stage1_label: str = ""
     payment_stage1_amount: str = ""
     payment_stage2_label: str = ""
@@ -415,8 +417,17 @@ def _build_payment_stages(data: PartnerVisaCostAgreementData) -> list[tuple[str,
     stages = [
         (data.payment_stage1_label or "1. Before lodgement time", f"${fmt_amt(data.payment_stage1_amount)}"),
         (data.payment_stage2_label or "2. On the lodgement day", f"${fmt_amt(data.payment_stage2_amount)}"),
-        (data.payment_stage3_label or "3. Two months from day of application", f"${fmt_amt(data.payment_stage3_amount)}"),
     ]
+    # Stage 3 has no default text (unlike stages 1/2): it only appears in the
+    # PDF if staff actually typed a label or an amount for it. Otherwise an
+    # untouched field would silently render "Two months from day of
+    # application" -- content nobody asked for, which is exactly what staff
+    # were manually crossing out on printed drafts.
+    if data.payment_stage3_label.strip() or data.payment_stage3_amount.strip():
+        stages.append((
+            data.payment_stage3_label or "3. Stage",
+            f"${fmt_amt(data.payment_stage3_amount)}",
+        ))
     for i, extra in enumerate(data.extra_stages):
         label = extra.get("label") or f"{3 + i + 1}. Stage"
         amount = f"${fmt_amt(extra.get('amount'))}"
