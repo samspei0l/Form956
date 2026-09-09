@@ -30,7 +30,18 @@ def draw_watermark(canvas, doc) -> None:
     canvas.restoreState()
 
 
-def draw_header(canvas, doc, doc_id: str, generated_at: str, service_type_label: str = "") -> None:
+def draw_header(canvas, doc, doc_id: str, generated_at: str, service_type_label: str = "",
+                 *, badge_label: str | None = None, badge_every_page: bool = False) -> None:
+    """Brand header. ``generated_at`` is printed verbatim as "Issued: ..." --
+    cost agreements pass a build timestamp, but the finance documents pass
+    the document's own issue date so the header matches the Issue Date the
+    body prints (see builders/invoice.py).
+
+    ``badge_label`` overrides the "COST AGREEMENT — <service>" navy badge for
+    document types that aren't cost agreements ("TAX INVOICE"); with
+    ``badge_every_page`` it repeats on every page instead of the cover only,
+    mirroring winzoylegal_new's ``applyBrandChrome(..., badgeLabel)``.
+    """
     canvas.saveState()
     W, H = L.PAGE_W, L.PAGE_H
     ML, MR = L.ML, L.MR
@@ -56,10 +67,13 @@ def draw_header(canvas, doc, doc_id: str, generated_at: str, service_type_label:
     canvas.drawString(word_x, H - 62, L.FIRM_ACN)
 
     right_x = W - MR
-    is_cover = canvas.getPageNumber() == 1
-    if is_cover:
-        svc = (service_type_label or "").upper()
-        label = f"COST AGREEMENT — {svc}" if svc else "COST AGREEMENT"
+    show_badge = badge_every_page or canvas.getPageNumber() == 1
+    if show_badge:
+        if badge_label is not None:
+            label = badge_label.upper()
+        else:
+            svc = (service_type_label or "").upper()
+            label = f"COST AGREEMENT — {svc}" if svc else "COST AGREEMENT"
         canvas.setFont(L.FONT_BOLD, 9)
         lw = canvas.stringWidth(label, L.FONT_BOLD, 9)
         canvas.setFillColor(L.NAVY)

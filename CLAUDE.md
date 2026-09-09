@@ -12,9 +12,10 @@ behind one app:
    the PDF's real AcroForm widget positions — no coordinate-based overlay
    drawing, no drift when the official template changes.
 2. **`/cost-agreements/*` — document generation** (`costagreements/`).
-   Builds 13 kinds of Winzoy Legal cost-agreement PDF *from scratch* with
-   ReportLab Platypus flowables. Nothing is being filled in; there is no
-   template PDF.
+   Builds 13 kinds of Winzoy Legal cost-agreement PDF *plus* the two
+   finance documents (`invoice`, `receipt`) *from scratch* with ReportLab
+   Platypus flowables. Nothing is being filled in; there is no template
+   PDF.
 
 They share only `app.py`, `pdfform.cache`, `pdfform.validate`'s date
 helpers/`ValidationError`, and the JSON-logging setup. Keep them separate:
@@ -42,6 +43,7 @@ pytest tests/test_cost_agreements.py::test_sigmeta_boxes_match_actual_rendered_s
 
 # just one of the two subsystems
 pytest tests/test_cost_agreements.py
+pytest tests/test_finance_documents.py   # invoice + receipt
 
 # production server (2 workers x 4 threads)
 gunicorn -w 2 -k gthread --threads 4 -b 0.0.0.0:5000 app:app
@@ -174,7 +176,38 @@ for content**; only the per-page chrome draws at absolute positions.
 - `sigmeta.py` — see below.
 - `schema.py` + `validate.py` — the *General* agreement's dataclass and
   validator. Every other type keeps its own alongside its builder.
-- `builders/*.py` — one module per agreement type (~400–1200 lines each).
+- `finance.py` + `validate_finance.py` — the card-family flowables
+  (`panel_row`, `line_items_table`, `totals_card`, ...) and shared
+  validator behind the two finance documents. See below.
+- `builders/*.py` — one module per agreement type (~400–1200 lines each),
+  plus `invoice.py` / `receipt.py`.
+
+**The finance documents (`invoice`, `receipt`)** are not cost agreements,
+but they are built by the same engine, wear the same brand chrome, and
+export the same four-part builder contract, so they register in the same
+`app.py` dicts and ride the same route (`/cost-agreements/invoice/fill`).
+Ported from winzoylegal_new's `features/invoice/buildInvoicePdf.ts` and
+`features/receipt/buildReceiptPdf.ts`. Three things about them differ from
+every agreement type, all deliberate:
+
+- **They are never signed.** No SIGMETA metadata, and no reserved
+  post-signing stamp band — their frame is `layout.DOC_FRAME_Y` /
+  `DOC_FRAME_HEIGHT`, which runs down to just above the footer. Don't add
+  them to `tests/test_cost_agreements.py`'s parametrised lists; they have
+  their own suite in `tests/test_finance_documents.py`.
+- **The header's "Issued:" line is the document's own issue date**, not a
+  render timestamp — `chrome.draw_header` prints `generated_at` verbatim,
+  and these builders pass `data.issue_date`. Previously (in the pdf-lib
+  original) regenerating an invoice months later printed today's date at
+  the top of a page whose Issue Date field still showed the real one.
+- **The Doc ID is deterministic** (`finance.stable_doc_id`, seeded only
+  from the document's identifying fields — no clock). A numbered financial
+  record must reprint the same Doc ID every time its PDF is rebuilt, or the
+  footer's "Verify:" stamp means nothing.
+
+`chrome.draw_header`'s `badge_label` / `badge_every_page` keywords exist for
+these two: the navy badge reads "TAX INVOICE" / "PAYMENT RECEIPT" on every
+page instead of "COST AGREEMENT — <service>" on the cover only.
 
 **SIGMETA — how remote signing interoperates** (`sigmeta.py`): the
 downstream project owns the client-signing workflow (Supabase
@@ -204,7 +237,8 @@ per-form salt of its own — without it, identical payloads across two types
 
 Generation is **synchronous and final**: pass `client_signature_data` /
 `rep_signature_data` as base64 image data URIs up front, or the signature
-boxes render empty for print-and-sign.
+boxes render empty for print-and-sign. (Not applicable to `invoice` /
+`receipt` — those are never signed.)
 
 ## Adding a new form (`/forms/*`)
 
@@ -243,7 +277,11 @@ easy mistake — the type will 404, or silently skip validation/normalisation.
    — they already assert, for every registered type, that a minimal payload
    validates, builds a valid PDF, and returns 200 from the route.
 
-`/health` lists every registered type under `cost_agreement_types`.
+`/health` lists every registered type under `cost_agreement_types` —
+including `invoice` and `receipt`, which follow the same four-part contract
+(`InvoiceData.from_payload` / `validate_invoice` / `apply_invoice_
+normalisations` / `build_invoice`) but build from `finance.py` flowables
+rather than `components.py` ones.
 
 ## Cross-cutting concerns (wired in `app.py` before routes register)
 
