@@ -118,6 +118,27 @@ def _assert_no_body_overflow(pdf_bytes: bytes) -> dict[int, str]:
     return page_text
 
 
+def _assert_sigmeta_boxes_safe(meta: dict) -> None:
+    """Mirrors ``boxIsSafe()`` in winzoylegal_new's on-document-signed edge
+    function. A box failing it is not an error there -- the function logs
+    "SIGMETA box out of safe bounds, skipping embed" and the client's real
+    signature is silently never stamped, so nothing downstream surfaces it."""
+    boxes = [("client", meta["cX"], meta["cY"], meta["w"], meta["h"]),
+             ("rep", meta["rX"], meta["rY"], meta["w"], meta["h"])]
+    annex_c = meta.get("annexC")
+    if annex_c:
+        boxes.append(("annexC", annex_c["x"], annex_c["y"], annex_c["w"], annex_c["h"]))
+
+    for name, x, y, w, h in boxes:
+        assert y >= L.STAMP_ZONE_TOP, (
+            f"{name} signature box bottom y={y:.1f} is below STAMP_ZONE_TOP="
+            f"{L.STAMP_ZONE_TOP} -- the signing edge function will reject it and "
+            "skip embedding the signature entirely"
+        )
+        assert y + h <= L.PAGE_H - 40, f"{name} signature box top overruns the page"
+        assert 0 <= x and x + w <= L.PAGE_W, f"{name} signature box is off-page horizontally"
+
+
 # ---------------------------------------------------------------- validation
 def test_minimal_payload_is_valid():
     assert validate_general_cost_agreement(MINIMAL_PAYLOAD) == []
@@ -218,6 +239,16 @@ def test_no_body_overflow_on_default_payload():
     _assert_no_body_overflow(pdf_bytes)
 
 
+def test_content_frame_clears_the_post_signing_stamp_band():
+    """winzoylegal_new stamps a signature-image + date band onto every body
+    page at y in [61, 96] (see layout.py's STAMP_* constants). If the content
+    frame ever reaches back down into that band, stamped ink lands on top of
+    real content -- the reported bug, where a signature cut through the Cost
+    Summary table's 'Total Professional Cost' row."""
+    assert L.STAMP_BASELINE_Y + L.STAMP_SIG_H <= L.STAMP_ZONE_TOP
+    assert L.FRAME_Y >= L.STAMP_ZONE_TOP
+
+
 # ---------------------------------------------------------------- SIGMETA
 def test_sigmeta_boxes_match_actual_rendered_signature_positions():
     """The whole point of SIGMETA is that winzoylegal_new's existing
@@ -269,6 +300,7 @@ def test_sigmeta_boxes_match_actual_rendered_signature_positions():
     assert any(contains(annex_c["x"], annex_c["y"], annex_c["w"], annex_c["h"], c) for c in annex_c_centers), (
         "Annexure C signature box coordinates don't contain the actual rendered image"
     )
+    _assert_sigmeta_boxes_safe(meta)
     doc.close()
 
 
@@ -514,6 +546,36 @@ def test_other_types_minimal_payload_builds_a_valid_pdf(schema_cls, build_fn, pa
     assert doc.page_count >= 1
     doc.close()
     _assert_no_body_overflow(pdf_bytes)
+
+
+@pytest.mark.parametrize(
+    "schema_cls, build_fn, payload",
+    [
+        (GeneralCostAgreementData, build_general_cost_agreement, MINIMAL_PAYLOAD),
+        (ClientAgreementData, build_client_agreement, CLIENT_AGREEMENT_MINIMAL_PAYLOAD),
+        (ArtCostAgreementData, build_art_cost_agreement, ART_MINIMAL_PAYLOAD),
+        (JrpCostAgreementData, build_jrp_cost_agreement, JRP_MINIMAL_PAYLOAD),
+        (SkillsAssessmentOnlyCostAgreementData, build_skills_assessment_only_cost_agreement, SKILLS_ASSESSMENT_ONLY_MINIMAL_PAYLOAD),
+        (PartnerVisaCostAgreementData, build_partner_visa_cost_agreement, PARTNER_VISA_MINIMAL_PAYLOAD),
+        (SkilledVisaCostAgreementData, build_skilled_visa_cost_agreement, SKILLED_VISA_MINIMAL_PAYLOAD),
+        (SkillsAssessmentCostAgreementData, build_skills_assessment_cost_agreement, SKILLS_ASSESSMENT_MINIMAL_PAYLOAD),
+        (SkillsAssessment186CostAgreementData, build_skills_assessment_186_cost_agreement, SKILLS_ASSESSMENT_186_MINIMAL_PAYLOAD),
+        (BfaCostAgreementData, build_bfa_cost_agreement, BFA_MINIMAL_PAYLOAD),
+        (DivorceCostAgreementData, build_divorce_cost_agreement, DIVORCE_MINIMAL_PAYLOAD),
+        (Visa482CostAgreementData, build_visa_482_cost_agreement, VISA_482_MINIMAL_PAYLOAD),
+        (Visa870CostAgreementData, build_visa_870_cost_agreement, VISA_870_MINIMAL_PAYLOAD),
+    ],
+)
+def test_every_type_reports_sigmeta_boxes_the_signing_function_accepts(schema_cls, build_fn, payload):
+    from costagreements.sigmeta import parse_sigmeta
+
+    data = schema_cls.from_payload(payload)
+    pdf_bytes = build_fn(data)
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    meta = parse_sigmeta(doc.metadata.get("subject"))
+    doc.close()
+    assert meta is not None
+    _assert_sigmeta_boxes_safe(meta)
 
 
 # ---------------------------------------------------------------- HTTP route
