@@ -351,10 +351,10 @@ def cost_summary_table(professional_cost: float, disbursements_cost: float, tota
 def bank_details_box() -> Table:
     data = [
         [PT("BANK ACCOUNT DETAILS", L.STYLE_H2), ""],
-        [PT("Bank: Commonwealth Bank of Australia", L.STYLE_BODY_SMALL),
-         PT("Account Name: Winzoy Legal", L.STYLE_BODY_SMALL)],
-        [PT("BSB: 067 873", L.STYLE_BODY_SMALL),
-         PT("Account No: 1007 5448", L.STYLE_BODY_SMALL)],
+        [PT(f"Bank: {L.BANK_NAME}", L.STYLE_BODY_SMALL),
+         PT(f"Account Name: {L.BANK_ACCOUNT_NAME}", L.STYLE_BODY_SMALL)],
+        [PT(f"BSB: {L.BANK_BSB}", L.STYLE_BODY_SMALL),
+         PT(f"Account No: {L.BANK_ACCOUNT_NO}", L.STYLE_BODY_SMALL)],
     ]
     t = Table(data, colWidths=[L.CONTENT_W / 2, L.CONTENT_W / 2])
     t.setStyle(TableStyle([

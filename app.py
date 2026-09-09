@@ -130,12 +130,28 @@ from costagreements.builders.divorce import (
     validate_divorce_cost_agreement,
 )
 from costagreements.builders.general import build_general_cost_agreement
+# Finance documents (invoice/receipt). Not cost agreements -- they're
+# generated from scratch by the same ReportLab engine, share the same brand
+# chrome, and export the same four-part builder contract, so they register
+# in the same dicts and ride the same route rather than duplicating it.
+from costagreements.builders.invoice import (
+    InvoiceData,
+    apply_invoice_normalisations,
+    build_invoice,
+    validate_invoice,
+)
 from costagreements.builders.jrp import JrpCostAgreementData, apply_jrp_normalisations, build_jrp_cost_agreement, validate_jrp_cost_agreement
 from costagreements.builders.partner_visa import (
     PartnerVisaCostAgreementData,
     apply_partner_visa_normalisations,
     build_partner_visa_cost_agreement,
     validate_partner_visa_cost_agreement,
+)
+from costagreements.builders.receipt import (
+    ReceiptData,
+    apply_receipt_normalisations,
+    build_receipt,
+    validate_receipt,
 )
 from costagreements.builders.skilled_visa import (
     SkilledVisaCostAgreementData,
@@ -191,6 +207,8 @@ COST_AGREEMENT_BUILDERS: dict[str, callable] = {  # type: ignore[type-arg]
     "divorce": build_divorce_cost_agreement,
     "visa_482": build_visa_482_cost_agreement,
     "visa_870": build_visa_870_cost_agreement,
+    "invoice": build_invoice,
+    "receipt": build_receipt,
 }
 COST_AGREEMENT_SCHEMAS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": GeneralCostAgreementData.from_payload,
@@ -206,6 +224,8 @@ COST_AGREEMENT_SCHEMAS: dict[str, callable] = {  # type: ignore[type-arg]
     "divorce": DivorceCostAgreementData.from_payload,
     "visa_482": Visa482CostAgreementData.from_payload,
     "visa_870": Visa870CostAgreementData.from_payload,
+    "invoice": InvoiceData.from_payload,
+    "receipt": ReceiptData.from_payload,
 }
 COST_AGREEMENT_VALIDATORS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": validate_general_cost_agreement,
@@ -221,6 +241,8 @@ COST_AGREEMENT_VALIDATORS: dict[str, callable] = {  # type: ignore[type-arg]
     "divorce": validate_divorce_cost_agreement,
     "visa_482": validate_visa_482_cost_agreement,
     "visa_870": validate_visa_870_cost_agreement,
+    "invoice": validate_invoice,
+    "receipt": validate_receipt,
 }
 COST_AGREEMENT_NORMALISERS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": apply_ca_normalisations,
@@ -236,6 +258,8 @@ COST_AGREEMENT_NORMALISERS: dict[str, callable] = {  # type: ignore[type-arg]
     "divorce": apply_divorce_normalisations,
     "visa_482": apply_visa_482_normalisations,
     "visa_870": apply_visa_870_normalisations,
+    "invoice": apply_invoice_normalisations,
+    "receipt": apply_receipt_normalisations,
 }
 
 
