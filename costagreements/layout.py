@@ -31,13 +31,27 @@ CONTENT_W = PAGE_W - ML - MR
 HEADER_H = 78
 FOOTER_H = 56
 
-# Frame content area: everything below the header line and above the footer
-# line. There is no separate "post-signing stamp band" here (see CLAUDE.md
-# note in builders/general.py) so, unlike winzoylegal_new, only the footer
-# itself needs to be reserved.
+# Post-signing stamp band. Both consumers of these PDFs -- winzoylegal_new's
+# `on-document-signed` edge function and its retroactiveSignature.ts -- stamp a
+# "signature image + Date" band onto every body page at
+# y in [STAMP_DATE_Y, STAMP_BASELINE_Y + STAMP_SIG_H] = [61, 96]. Neither can
+# import this module, so these mirror winzoylegal_new/src/features/_shared/
+# pdfLayout.ts -- keep them in sync. STAMP_ZONE_TOP is also the edge function's
+# SAFE_MIN_Y: a SIGMETA box reporting a bottom below it is rejected outright and
+# the client's real signature is silently never embedded.
+STAMP_SIG_H = 26
+STAMP_BASELINE_Y = 70
+STAMP_DATE_Y = STAMP_BASELINE_Y - 9
+STAMP_ZONE_TOP = 100
+
+# Clear whitespace between the last line of body content and the stamp band, so
+# stamped ink never lands flush against a table rule.
+STAMP_ZONE_GAP = 30
+
+# Frame content area: everything below the header line and above the reserved
+# stamp band (which itself sits above the footer).
 FRAME_TOP_PAD = 14
-FRAME_BOTTOM_PAD = 20
-FRAME_Y = FOOTER_H + FRAME_BOTTOM_PAD
+FRAME_Y = STAMP_ZONE_TOP + STAMP_ZONE_GAP
 FRAME_HEIGHT = PAGE_H - HEADER_H - FRAME_TOP_PAD - FRAME_Y
 
 # Minimum vertical whitespace (pt) reserved between the last content drawn

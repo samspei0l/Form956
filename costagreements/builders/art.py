@@ -20,12 +20,18 @@ ways (all mirrored from the TS source, not invented here):
      wording), while 1-4, 7, 8, 13-15 are shared boilerplate identical to
      the General agreement.
 
-This is a synchronous, single-call generator: the returned PDF is the
-final document. There is no SIGMETA-metadata / post-signing remote-stamp
-step (winzoylegal_new's two-stage e-signing flow) -- out of scope per the
-architecture decision for this Flask port. If a signature image isn't
-supplied in the payload, the signature box renders empty/bordered for
-print-and-sign, matching winzoylegal_new's own "no signature yet" branch.
+This is a synchronous, single-call generator, but the returned PDF is not
+necessarily the final document: it embeds SIGMETA metadata (see
+costagreements/sigmeta.py) recording where the signature boxes landed, and
+winzoylegal_new's ``on-document-signed`` edge function later stamps the real
+signature into those boxes -- plus a signature-image + date band onto every
+other body page, at y in [61, 96]. costagreements/layout.py reserves that
+band (STAMP_ZONE_TOP / FRAME_Y); content must never reach back down into it,
+or stamped ink lands on top of tables and text. Driving that flow (tokens,
+pending/signed status) stays with winzoylegal_new and is out of scope here.
+If a signature image isn't supplied in the payload, the signature box
+renders empty/bordered for print-and-sign, matching winzoylegal_new's own
+"no signature yet" branch.
 """
 from __future__ import annotations
 
