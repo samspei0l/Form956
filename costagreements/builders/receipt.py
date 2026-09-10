@@ -71,6 +71,18 @@ class ReceiptData:
             total_paid_to_date = previously_paid + amount_paid
         else:
             total_paid_to_date = parse_amt(payload.get("total_paid_to_date"))
+            # The ledger card reads top to bottom as
+            # Previously Paid + This Payment = Paid to Date, so those three
+            # figures have to agree. When they don't -- a caller sending a
+            # stale invoice balance as previously_paid alongside a
+            # freshly-read running total -- the running total is the one
+            # that was read from the ledger, so previously_paid is derived
+            # back out of it rather than printing a card that doesn't add
+            # up (the reported case: $4,000 previously paid + $4,000 this
+            # payment = $4,000 paid to date, on a client's first payment).
+            derived = round(total_paid_to_date - amount_paid, 2)
+            if abs(derived - previously_paid) > 0.005:
+                previously_paid = max(derived, 0.0)
 
         if payload.get("balance_remaining") is None:
             balance_remaining = max(invoice_total - total_paid_to_date, 0.0)
