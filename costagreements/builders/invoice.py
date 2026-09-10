@@ -1,4 +1,5 @@
-"""Builds the Tax Invoice PDF.
+"""Builds the Tax Invoice PDF -- or, when no GST is charged, a plain
+Invoice (see ``NO_GST_BADGE_LABEL``).
 
 Transcribed from winzoylegal_new's
 ``src/features/invoice/buildInvoicePdf.ts`` (+ its ``types.ts``) -- same
@@ -40,6 +41,11 @@ from ..validate_finance import (
 )
 
 BADGE_LABEL = "TAX INVOICE"
+# A supply with no GST on it isn't a tax invoice -- the ATO reserves that
+# label for documents that actually show a GST amount -- so a zero-rated
+# invoice is badged, titled and PDF-named "INVOICE" and drops the GST row
+# from its ledger entirely, rather than printing "GST (0%)  $0.00".
+NO_GST_BADGE_LABEL = "INVOICE"
 
 
 @dataclass
@@ -87,6 +93,16 @@ class InvoiceData:
     total: float = 0.0
 
     notes: str = ""
+
+    @property
+    def has_gst(self) -> bool:
+        """False for a "No GST" invoice (the finance UI's GST mode "none",
+        which sends a zero rate and a zero amount)."""
+        return self.gst_rate_percent > 0 or self.gst_amount > 0
+
+    @property
+    def badge_label(self) -> str:
+        return BADGE_LABEL if self.has_gst else NO_GST_BADGE_LABEL
 
     @classmethod
     def from_payload(cls, payload: dict) -> "InvoiceData":
@@ -161,12 +177,12 @@ def build_invoice(data: InvoiceData) -> bytes:
     def on_page(canvas, doc):
         chrome.draw_watermark(canvas, doc)
         chrome.draw_header(canvas, doc, doc_id, generated_at,
-                            badge_label=BADGE_LABEL, badge_every_page=True)
+                            badge_label=data.badge_label, badge_every_page=True)
 
     template = PageTemplate(id="main", frames=[frame], onPage=on_page)
     doc = BaseDocTemplate(
         buf, pagesize=(L.PAGE_W, L.PAGE_H), pageTemplates=[template],
-        title=f"Tax Invoice {data.invoice_number}".strip(), author=L.FIRM_NAME,
+        title=f"{data.badge_label.title()} {data.invoice_number}".strip(), author=L.FIRM_NAME,
         topMargin=0, bottomMargin=0, leftMargin=0, rightMargin=0,
     )
     bind_headings(story)
@@ -183,7 +199,7 @@ def _build_story(data: InvoiceData) -> list:
         meta_rows.append(("Due Date", data.due_date))
     meta_rows.append(("Case Reference", data.case_reference))
 
-    story: list = [*F.doc_title("TAX INVOICE")]
+    story: list = [*F.doc_title(data.badge_label)]
     story.append(F.panel_row(
         "Bill To",
         F.bill_to_flows(data.client_name, data.bill_to_company_name, data.bill_to_address,
@@ -196,13 +212,10 @@ def _build_story(data: InvoiceData) -> list:
     story.append(F.line_items_table(data.line_items))
     story.append(Spacer(1, 20))
 
-    story.append(F.totals_card(
-        [
-            ("Subtotal", F.money(data.subtotal)),
-            (f"GST ({fmt_gst_rate(data.gst_rate_percent)}%)", F.money(data.gst_amount)),
-        ],
-        "Total Due", F.money(data.total, " AUD"),
-    ))
+    totals_rows = [("Subtotal", F.money(data.subtotal))]
+    if data.has_gst:
+        totals_rows.append((f"GST ({fmt_gst_rate(data.gst_rate_percent)}%)", F.money(data.gst_amount)))
+    story.append(F.totals_card(totals_rows, "Total Due", F.money(data.total, " AUD")))
     story.append(Spacer(1, 20))
 
     notes = F.notes_panel(data.notes)
