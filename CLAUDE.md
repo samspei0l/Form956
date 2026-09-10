@@ -209,6 +209,11 @@ every agreement type, all deliberate:
 these two: the navy badge reads "TAX INVOICE" / "PAYMENT RECEIPT" on every
 page instead of "COST AGREEMENT — <service>" on the cover only.
 
+An invoice sent with a zero `gst_rate_percent` and `gst_amount` (the finance
+UI's "No GST" mode) is *not* a tax invoice: it is badged, titled and
+PDF-named "INVOICE" and its ledger drops the GST row entirely rather than
+printing "GST (0%)  $0.00". `InvoiceData.has_gst` / `.badge_label` decide.
+
 **SIGMETA — how remote signing interoperates** (`sigmeta.py`): the
 downstream project owns the client-signing workflow (Supabase
 `document_signatures` + an `on-document-signed` edge function). That

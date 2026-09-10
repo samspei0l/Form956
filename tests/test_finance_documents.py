@@ -298,11 +298,18 @@ def test_receipt_running_totals_derived_when_omitted():
     assert data.credit_amount == pytest.approx(0.0)
 
 
-def test_zero_gst_invoice_prints_a_zero_rate_label():
+def test_no_gst_invoice_drops_the_gst_row_and_the_tax_invoice_label():
+    """The finance UI's "No GST" mode sends a zero rate and a zero amount.
+    That document isn't a tax invoice, so it must not carry the label -- and
+    its ledger shows the plain amount, not a "GST (0%)  $0.00" row."""
     text = _page_texts(_build_invoice(dict(
         INVOICE_MINIMAL_PAYLOAD, gst_rate_percent=0, gst_amount=0, subtotal=5500.0,
     )))[0]
-    assert "GST (0%)" in text
+    assert "GST" not in text
+    assert "TAX INVOICE" not in text
+    assert "INVOICE" in text
+    assert "Subtotal" in text
+    assert "$5,500.00 AUD" in text
 
 
 def test_whole_quantities_print_without_a_decimal_tail():
@@ -409,7 +416,7 @@ def test_invoice_and_receipt_payloads_do_not_collide_in_the_cache(client):
     shared = {
         "issue_date": "09/09/2026", "client_name": "Same Payload Pty Ltd",
         "invoice_number": "INV-COLLIDE", "case_reference": "WZL-COLLIDE",
-        "amount_paid": 100, "invoice_total": 100,
+        "amount_paid": 100, "invoice_total": 100, "gst_rate_percent": 10,
         "line_items": [{"description": "Fee", "quantity": 1, "unit_price": 100, "amount": 100}],
     }
     inv = client.post("/cost-agreements/invoice/fill", json=shared)
