@@ -225,6 +225,33 @@ def test_receipt_omits_previously_paid_on_a_first_payment():
     assert "This Payment" in text
 
 
+def test_receipt_drops_a_previously_paid_that_contradicts_the_running_total():
+    """A caller sending a stale invoice balance as previously_paid alongside
+    a freshly-read total_paid_to_date used to print a card that didn't add
+    up -- $4,000 previously paid + $4,000 this payment = $4,000 paid to
+    date, on a first payment. The running total wins, so the row is dropped
+    entirely here."""
+    text = _page_texts(_build_receipt(dict(
+        RECEIPT_MINIMAL_PAYLOAD, amount_paid=4000, invoice_total=4000,
+        previously_paid=4000, total_paid_to_date=4000, balance_remaining=0,
+    )))[0]
+    assert "Previously Paid" not in text
+    assert "This Payment" in text
+    assert "$4,000.00 AUD" in text
+
+
+def test_receipt_reconciles_a_partial_previously_paid_against_the_running_total():
+    """Same reconciliation with a genuine earlier payment: paid-to-date minus
+    this payment is what the 'Previously Paid' row must show."""
+    text = _page_texts(_build_receipt(dict(
+        RECEIPT_MINIMAL_PAYLOAD, amount_paid=2000, invoice_total=5500,
+        previously_paid=3000, total_paid_to_date=3000, balance_remaining=2500,
+    )))[0]
+    assert "Previously Paid" in text
+    assert "$1,000.00" in text
+    assert "$3,000.00 AUD" in text
+
+
 def test_receipt_prints_a_credit_note_when_the_payment_overshoots():
     text = _page_texts(_build_receipt(dict(
         RECEIPT_MINIMAL_PAYLOAD, amount_paid=5000, total_paid_to_date=6000,
