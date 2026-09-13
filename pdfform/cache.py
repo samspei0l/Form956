@@ -37,7 +37,12 @@ MAX_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 #: v3 (2026-07-16): is_new_application's mg.app checkbox pair was ticking
 #: the wrong box (see adapt_form956.py) -- any cached PDF for a payload
 #: that set this field was wrong and must not be served after the fix.
-CACHE_SCHEMA_VERSION = 3
+#: v4 (2026-09-13): cost agreements cached before b237b60 ("fixing signature
+#: stamp", which moved the content frame up to reserve the post-signing stamp
+#: band) kept being served in the old layout. Signing one of those put the
+#: per-page stamp on top of body text, or failed outright because its
+#: signature box sat inside the band.
+CACHE_SCHEMA_VERSION = 4
 
 
 def canonicalise(payload: dict) -> str:
