@@ -122,6 +122,7 @@ from ..components import (
     cost_summary_table,
     decode_data_uri,
     esc,
+    multiline_html,
     parties_table,
     signature_block,
     staff_note_box,
@@ -169,6 +170,11 @@ class PartnerVisaCostAgreementData:
     payment_stage3_label: str = ""
     payment_stage3_amount: str = ""
     extra_stages: list[dict] = field(default_factory=list)  # [{"label": str, "amount": str}, ...]
+    # The dynamic Section F table: any number of {"description", "amount"}
+    # rows, numbered by position. When supplied (not None) it replaces the
+    # stage1-3 + extra_stages fields above, which remain only so drafts
+    # saved before this editor existed still render the same PDF.
+    payment_schedule_items: list[dict] | None = None
 
     # Signature block
     marn: str = ""
@@ -199,6 +205,18 @@ class PartnerVisaCostAgreementData:
                         "amount": str(item.get("amount") or ""),
                     })
 
+        schedule_raw = payload.get("payment_schedule_items")
+        payment_schedule_items: list[dict] | None = None
+        if isinstance(schedule_raw, list):
+            payment_schedule_items = [
+                {
+                    "description": str(item.get("description") or ""),
+                    "amount": str(item.get("amount") or ""),
+                }
+                for item in schedule_raw
+                if isinstance(item, dict)
+            ]
+
         return cls(
             date=str(payload.get("date") or ""),
             our_ref=str(payload.get("our_ref") or ""),
@@ -220,6 +238,7 @@ class PartnerVisaCostAgreementData:
             payment_stage3_label=str(payload.get("payment_stage3_label") or ""),
             payment_stage3_amount=str(payload.get("payment_stage3_amount") or ""),
             extra_stages=extra_stages,
+            payment_schedule_items=payment_schedule_items,
             marn=str(payload.get("marn") or ""),
             lpn=str(payload.get("lpn") or ""),
             rep_signature_data=payload.get("rep_signature_data") or None,
@@ -246,6 +265,7 @@ MONEY_FIELDS = frozenset({
     "payment_stage1_amount", "payment_stage2_amount", "payment_stage3_amount",
 })
 IMAGE_FIELDS = frozenset({"client_signature_data", "rep_signature_data"})
+MAX_PAYMENT_SCHEDULE_ITEMS = 50
 
 
 def validate_partner_visa_cost_agreement(payload: dict) -> list[ValidationError]:
@@ -296,6 +316,33 @@ def validate_partner_visa_cost_agreement(payload: dict) -> list[ValidationError]
                     errs.append(ValidationError(
                         field="extra_stages", code="value",
                         message=f"extra_stages[{i}].amount must not be negative",
+                    ))
+
+    schedule = payload.get("payment_schedule_items")
+    if schedule is not None:
+        if not isinstance(schedule, list):
+            errs.append(ValidationError(
+                field="payment_schedule_items", code="shape",
+                message="'payment_schedule_items' must be a list of {description, amount} objects",
+            ))
+        elif len(schedule) > MAX_PAYMENT_SCHEDULE_ITEMS:
+            errs.append(ValidationError(
+                field="payment_schedule_items", code="value",
+                message=f"'payment_schedule_items' allows at most {MAX_PAYMENT_SCHEDULE_ITEMS} rows",
+            ))
+        else:
+            for i, item in enumerate(schedule):
+                if not isinstance(item, dict):
+                    errs.append(ValidationError(
+                        field="payment_schedule_items", code="shape",
+                        message=f"payment_schedule_items[{i}] must be an object",
+                    ))
+                    continue
+                amt = item.get("amount")
+                if amt not in (None, "") and parse_amt(amt) < 0:
+                    errs.append(ValidationError(
+                        field="payment_schedule_items", code="value",
+                        message=f"payment_schedule_items[{i}].amount must not be negative",
                     ))
 
     for f in IMAGE_FIELDS:
@@ -406,7 +453,10 @@ def _payment_schedule_table(stages: list[tuple[str, str]]) -> Table:
     w1 = L.CONTENT_W * 0.70
     w2 = L.CONTENT_W * 0.30
     amt_style = ParagraphStyle("PV_PaySchedAmt", fontName=L.FONT_REGULAR, fontSize=10.5, alignment=1)
-    data = [[PT(label, L.STYLE_TABLE_CELL), P(esc(amount_text), amt_style)] for label, amount_text in stages]
+    data = [
+        [P(multiline_html(label), L.STYLE_TABLE_CELL), P(esc(amount_text), amt_style)]
+        for label, amount_text in stages
+    ]
     t = Table(data, colWidths=[w1, w2])
     t.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.5, L.BLACK),
@@ -441,7 +491,30 @@ def _numbered_stage_label(raw_label: str, n: int, fallback: str) -> str:
     return f"{n}. {text}"
 
 
+def _build_schedule_item_rows(items: list[dict]) -> list[tuple[str, str]]:
+    """Rows for the dynamic Section F table.
+
+    Rows with neither a description nor an amount are dropped (an "Add
+    row" click staff never filled in). Numbers come from each row's final
+    position, and any number staff typed themselves is stripped first, so
+    deleting or reordering rows can't leave "1., 3., 4." behind. A blank
+    amount prints a bare "$" for the amount to be written in by hand,
+    rather than asserting "$0.00".
+    """
+    rows: list[tuple[str, str]] = []
+    for item in items:
+        description = _LEADING_STAGE_NUMBER.sub("", (item.get("description") or "").strip(), count=1)
+        amount = (item.get("amount") or "").strip()
+        if not description and not amount:
+            continue
+        n = len(rows) + 1
+        rows.append((f"{n}. {description}" if description else f"{n}.", f"${fmt_amt(amount)}" if amount else "$"))
+    return rows
+
+
 def _build_payment_stages(data: PartnerVisaCostAgreementData) -> list[tuple[str, str]]:
+    if data.payment_schedule_items is not None:
+        return _build_schedule_item_rows(data.payment_schedule_items)
     stages = [
         (_numbered_stage_label(data.payment_stage1_label, 1, "1. Before lodgement time"),
          f"${fmt_amt(data.payment_stage1_amount)}"),
@@ -588,8 +661,10 @@ def _build_story(data: PartnerVisaCostAgreementData, today_short: str) -> list:
     # ── F. Payment Schedule for Cost and Disbursement ──
     story.append(P("F. Payment Schedule for Cost and Disbursement", L.STYLE_H2))
     story.append(Spacer(1, 6))
-    story.append(_payment_schedule_table(_build_payment_stages(data)))
-    story.append(Spacer(1, 14))
+    payment_stages = _build_payment_stages(data)
+    if payment_stages:  # every dynamic row left blank -> no table (ReportLab rejects an empty one)
+        story.append(_payment_schedule_table(payment_stages))
+        story.append(Spacer(1, 14))
     story.append(PT(
         "You are required to pay our fees immediately after your application has been "
         "completely prepared. You will also, upon our request, make payment for any "

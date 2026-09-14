@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .components import rich_text_to_lines
+
 
 @dataclass
 class GeneralCostAgreementData:
@@ -46,9 +48,7 @@ class GeneralCostAgreementData:
 
     @classmethod
     def from_payload(cls, payload: dict) -> "GeneralCostAgreementData":
-        bullets = payload.get("service_bullets") or []
-        if isinstance(bullets, str):
-            bullets = [b.strip() for b in bullets.split("\n") if b.strip()]
+        bullets = rich_text_to_lines(payload.get("service_bullets"))
 
         ack_languages = payload.get("ack_languages") or []
         if isinstance(ack_languages, str):

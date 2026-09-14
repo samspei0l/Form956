@@ -676,3 +676,102 @@ def test_other_types_fill_route_returns_pdf(client, agreement_type, payload):
     doc = pymupdf.open(stream=res.data, filetype="pdf")
     assert doc.page_count >= 1
     doc.close()
+
+
+# --------------------------------------------------------------------- partner visa: dynamic payment schedule
+def _page_one_text(pdf_bytes: bytes) -> str:
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    text = "\n".join(page.get_text() for page in doc)
+    doc.close()
+    return " ".join(text.split())
+
+
+def test_partner_visa_payment_schedule_items_render_numbered_rows():
+    items = [
+        {"description": "Professional Fee Payment - Upon completion of initial case assessment",
+         "amount": "1100"},
+        {"description": "", "amount": ""},  # untouched "Add row" -- dropped
+        {"description": "7. Professional Fees - Instalment 3 of 4\n(Deferred Payment Plan)", "amount": "2,200.50"},
+        {"description": "Professional Fees - Instalment 4 of 4", "amount": ""},
+    ]
+    payload = dict(PARTNER_VISA_MINIMAL_PAYLOAD, payment_schedule_items=items,
+                   payment_stage1_label="1. Before lodgement time", payment_stage1_amount="999")
+    assert validate_partner_visa_cost_agreement(payload) == []
+    text = _page_one_text(build_partner_visa_cost_agreement(PartnerVisaCostAgreementData.from_payload(payload)))
+
+    assert "1. Professional Fee Payment - Upon completion of initial case assessment" in text
+    assert "$1,100.00" in text
+    # renumbered by position (the blank row is gone, the typed "7." is replaced)
+    assert "2. Professional Fees - Instalment 3 of 4 (Deferred Payment Plan)" in text
+    assert "$2,200.50" in text
+    assert "3. Professional Fees - Instalment 4 of 4" in text
+    assert "7. Professional" not in text
+    # the legacy stage fields are ignored once the dynamic list is supplied
+    assert "Before lodgement time" not in text
+    assert "$999.00" not in text
+
+
+def test_partner_visa_without_schedule_items_keeps_legacy_stages():
+    payload = dict(PARTNER_VISA_MINIMAL_PAYLOAD, payment_stage1_amount="500")
+    text = _page_one_text(build_partner_visa_cost_agreement(PartnerVisaCostAgreementData.from_payload(payload)))
+    assert "1. Before lodgement time" in text
+    assert "2. On the lodgement day" in text
+
+
+def test_partner_visa_all_blank_schedule_items_still_builds():
+    payload = dict(PARTNER_VISA_MINIMAL_PAYLOAD, payment_schedule_items=[{"description": "", "amount": ""}])
+    pdf = build_partner_visa_cost_agreement(PartnerVisaCostAgreementData.from_payload(payload))
+    assert "F. Payment Schedule for Cost and Disbursement" in _page_one_text(pdf)
+
+
+@pytest.mark.parametrize(
+    "schedule, message_fragment",
+    [
+        ("not a list", "must be a list"),
+        (["row"], "payment_schedule_items[0] must be an object"),
+        ([{"description": "x", "amount": "-5"}], "must not be negative"),
+        ([{"description": "x", "amount": "1"}] * 51, "at most 50"),
+    ],
+)
+def test_partner_visa_schedule_items_validation(schedule, message_fragment):
+    payload = dict(PARTNER_VISA_MINIMAL_PAYLOAD, payment_schedule_items=schedule)
+    errs = validate_partner_visa_cost_agreement(payload)
+    assert any(e.field == "payment_schedule_items" and message_fragment in e.message for e in errs)
+
+
+# --------------------------------------------------------------------- rich-text service descriptions
+from costagreements.components import rich_text_to_lines  # noqa: E402
+
+_RICH_BULLETS = (
+    "<p>Process your <strong>application</strong></p>"
+    "<ul><li><p>Follow up &amp; finalise</p></li></ul>"
+    "<p></p><p>Inform you<br>of the outcome</p>"
+)
+
+
+def test_rich_text_to_lines_strips_editor_html():
+    assert rich_text_to_lines(_RICH_BULLETS) == [
+        "Process your application", "Follow up & finalise", "Inform you", "of the outcome",
+    ]
+    assert rich_text_to_lines("a\n\n b ") == ["a", "b"]
+    assert rich_text_to_lines(["<p>x</p><p>y</p>", "z"]) == ["x", "y", "z"]
+    assert rich_text_to_lines(None) == []
+
+
+@pytest.mark.parametrize(
+    "schema_cls, build_fn, payload",
+    [
+        (GeneralCostAgreementData, build_general_cost_agreement, MINIMAL_PAYLOAD),
+        (ArtCostAgreementData, build_art_cost_agreement, ART_MINIMAL_PAYLOAD),
+        (JrpCostAgreementData, build_jrp_cost_agreement, JRP_MINIMAL_PAYLOAD),
+        (BfaCostAgreementData, build_bfa_cost_agreement, BFA_MINIMAL_PAYLOAD),
+        (DivorceCostAgreementData, build_divorce_cost_agreement, DIVORCE_MINIMAL_PAYLOAD),
+    ],
+)
+def test_rich_text_service_bullets_render_without_html_tags(schema_cls, build_fn, payload):
+    pdf = build_fn(schema_cls.from_payload(dict(payload, service_bullets=_RICH_BULLETS)))
+    text = _page_one_text(pdf)
+    assert "Process your application" in text
+    assert "Follow up & finalise" in text
+    for tag in ("<p>", "</p>", "<strong>", "<li>", "&amp;"):
+        assert tag not in text

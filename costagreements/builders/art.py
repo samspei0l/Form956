@@ -61,6 +61,7 @@ from ..components import (
     disbursement_table,
     esc,
     parties_table,
+    rich_text_to_lines,
     signature_block,
     staff_note_box,
     two_column_terms_box,
@@ -121,9 +122,7 @@ class ArtCostAgreementData:
 
     @classmethod
     def from_payload(cls, payload: dict) -> "ArtCostAgreementData":
-        bullets = payload.get("service_bullets") or []
-        if isinstance(bullets, str):
-            bullets = [b.strip() for b in bullets.split("\n") if b.strip()]
+        bullets = rich_text_to_lines(payload.get("service_bullets"))
 
         ack_languages = payload.get("ack_languages") or []
         if isinstance(ack_languages, str):
