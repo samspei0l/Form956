@@ -754,6 +754,12 @@ def test_rich_text_to_lines_strips_editor_html():
         "Process your application", "Follow up & finalise", "Inform you", "of the outcome",
     ]
     assert rich_text_to_lines("a\n\n b ") == ["a", "b"]
+    # the bullet-list editor: one <li> is one point, even with Shift+Enter breaks inside it
+    assert rich_text_to_lines(
+        "<ul><li><p>Lodge your application<br>with the Department</p></li><li><p>Follow up</p></li></ul>"
+    ) == ["Lodge your application with the Department", "Follow up"]
+    # translated text arrives as plain "• " lines; bulleted_html() adds its own bullet
+    assert rich_text_to_lines("• Process your application\n- Follow up") == ["Process your application", "Follow up"]
     assert rich_text_to_lines(["<p>x</p><p>y</p>", "z"]) == ["x", "y", "z"]
     assert rich_text_to_lines(None) == []
 
