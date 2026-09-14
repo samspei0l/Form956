@@ -161,28 +161,48 @@ def rich_text_to_paragraph_markup(text: str) -> str:
     return markup
 
 
+_MANUAL_BULLET_RE = re.compile(r"^[•\-*]\s+")
+
+
 class _RichTextToLines(HTMLParser):
-    """Flattens TipTap HTML into plain text lines -- one per paragraph,
-    list item or ``<br>``. Inline formatting is dropped."""
+    """Flattens TipTap HTML into plain text lines -- one per list item, or
+    per paragraph / ``<br>`` outside a list. Inline formatting is dropped.
+
+    Inside a list item, paragraphs and ``<br>`` (Shift+Enter) only add a
+    space: the service-description editor is a bullet list, so one ``<li>``
+    is one point however staff wrapped its text.
+    """
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.lines: list[str] = []
         self._buf: list[str] = []
+        self._li_depth = 0
 
     def flush(self):
-        line = "".join(self._buf).replace("\xa0", " ").strip()
+        line = " ".join("".join(self._buf).replace("\xa0", " ").split())
+        line = _MANUAL_BULLET_RE.sub("", line)
         if line:
             self.lines.append(line)
         self._buf = []
 
+    def _break(self, tag):
+        if tag == "li" or not self._li_depth:
+            self.flush()
+        else:
+            self._buf.append(" ")
+
     def handle_starttag(self, tag, attrs):
         if tag == "br" or tag in _BLOCK_BREAK_TAGS:
-            self.flush()
+            self._break(tag)
+        if tag == "li":
+            self._li_depth += 1
 
     def handle_endtag(self, tag):
+        if tag == "li":
+            self._li_depth = max(0, self._li_depth - 1)
         if tag in _BLOCK_BREAK_TAGS:
-            self.flush()
+            self._break(tag)
 
     def handle_data(self, data):
         self._buf.append(data)
@@ -196,8 +216,11 @@ def rich_text_to_lines(value) -> list[str]:
     newline-separated text. Splitting that on ``\\n`` left the whole blob as
     one "bullet" and ``bulleted_html()``'s escaping printed the tags
     verbatim -- a literal ``<p>`` in the PDF. Plain-text input (the
-    generators' defaults, older drafts) still splits on newlines, and a
-    list input has each item flattened the same way.
+    generators' defaults, older drafts, translated text) still splits on
+    newlines, and a list input has each item flattened the same way. A
+    leading "•"/"-"/"*" is dropped from every line -- ``bulleted_html()``
+    adds the bullet, and the translation panel's plain text already carries
+    one per line.
     """
     if value is None:
         return []
@@ -205,7 +228,8 @@ def rich_text_to_lines(value) -> list[str]:
         return [line for item in value for line in rich_text_to_lines(item)]
     text = str(value)
     if not _HTML_TAG_RE.search(text):
-        return [line.strip() for line in text.split("\n") if line.strip()]
+        lines = (_MANUAL_BULLET_RE.sub("", line.strip()) for line in text.split("\n"))
+        return [line for line in lines if line]
     parser = _RichTextToLines()
     parser.feed(text)
     parser.close()
