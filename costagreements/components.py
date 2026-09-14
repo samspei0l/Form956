@@ -161,6 +161,58 @@ def rich_text_to_paragraph_markup(text: str) -> str:
     return markup
 
 
+class _RichTextToLines(HTMLParser):
+    """Flattens TipTap HTML into plain text lines -- one per paragraph,
+    list item or ``<br>``. Inline formatting is dropped."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.lines: list[str] = []
+        self._buf: list[str] = []
+
+    def flush(self):
+        line = "".join(self._buf).replace("\xa0", " ").strip()
+        if line:
+            self.lines.append(line)
+        self._buf = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "br" or tag in _BLOCK_BREAK_TAGS:
+            self.flush()
+
+    def handle_endtag(self, tag):
+        if tag in _BLOCK_BREAK_TAGS:
+            self.flush()
+
+    def handle_data(self, data):
+        self._buf.append(data)
+
+
+def rich_text_to_lines(value) -> list[str]:
+    """Split a staff-authored multi-line field into non-blank plain lines.
+
+    Service-description fields are edited in the frontend's RichTextEditor,
+    which emits ``<p>line</p><p>line</p>`` (or ``<ul><li>...``) rather than
+    newline-separated text. Splitting that on ``\\n`` left the whole blob as
+    one "bullet" and ``bulleted_html()``'s escaping printed the tags
+    verbatim -- a literal ``<p>`` in the PDF. Plain-text input (the
+    generators' defaults, older drafts) still splits on newlines, and a
+    list input has each item flattened the same way.
+    """
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [line for item in value for line in rich_text_to_lines(item)]
+    text = str(value)
+    if not _HTML_TAG_RE.search(text):
+        return [line.strip() for line in text.split("\n") if line.strip()]
+    parser = _RichTextToLines()
+    parser.feed(text)
+    parser.close()
+    parser.flush()
+    return parser.lines
+
+
 def P(text: str, style: ParagraphStyle) -> Paragraph:
     """Paragraph over already-escaped/markup-safe text (headings, labels,
     or output of bulleted_html/multiline_html)."""

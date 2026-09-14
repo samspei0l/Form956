@@ -121,6 +121,7 @@ from ..components import (
     disbursement_table,
     esc,
     parties_table,
+    rich_text_to_lines,
     signature_block,
     staff_note_box,
     works_fee_table,
@@ -468,8 +469,7 @@ def _build_story(data: DivorceCostAgreementData, today_short: str) -> list:
     story.append(Spacer(1, 10))
 
     # ── Our Works for You / Our Professional Cost ─────
-    bullets_raw = data.service_bullets or ""
-    bullets = [b.strip() for b in bullets_raw.split("\n") if b.strip()] if bullets_raw else []
+    bullets = rich_text_to_lines(data.service_bullets)
     fee_text = f"${fmt_amt(data.professional_fee)} incl GST"
     story.append(works_fee_table(bullets or _DEFAULT_BULLETS, fee_text))
     story.append(Spacer(1, 16))

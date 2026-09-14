@@ -56,6 +56,7 @@ from ..components import (
     decode_data_uri,
     esc,
     parties_table,
+    rich_text_to_lines,
     signature_block,
     staff_note_box,
 )
@@ -120,9 +121,7 @@ class JrpCostAgreementData:
 
     @classmethod
     def from_payload(cls, payload: dict) -> "JrpCostAgreementData":
-        bullets = payload.get("service_bullets") or []
-        if isinstance(bullets, str):
-            bullets = [b.strip() for b in bullets.split("\n") if b.strip()]
+        bullets = rich_text_to_lines(payload.get("service_bullets"))
 
         ack_languages = payload.get("ack_languages") or []
         if isinstance(ack_languages, str):
