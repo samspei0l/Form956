@@ -227,6 +227,23 @@ def test_a_different_lead_gets_a_different_doc_id():
     assert _doc_id(_build(FULL_PAYLOAD)) != _doc_id(_build(other))
 
 
+def test_only_the_applicant_signs_it():
+    """No FOR WINZOY LEGAL column.
+
+    A cost agreement is an agreement between two parties and both sign it
+    (tests/test_cost_agreements.py asserts that column is there). A
+    declaration is the applicant's own statement: the firm has nothing to
+    attest to, nobody was ever going to sign that box, and an empty
+    signature box on a signed document reads as an oversight.
+    """
+    text = _all_text(_build(FULL_PAYLOAD))
+    assert "Client Signature" in text
+    assert "FOR WINZOY LEGAL" not in text
+    # The firm's letterhead still says who produced the document -- it is
+    # only the signature column that goes.
+    assert "WINZOY LEGAL" in text
+
+
 def test_it_carries_no_sigmeta():
     """Nothing stamps this document, so there is no box to advertise. If
     SIGMETA ever appears here, on-document-signed would try to stamp a

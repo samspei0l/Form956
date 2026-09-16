@@ -461,6 +461,11 @@ def _build_story(data: DeclarationData) -> list:
     story.append(P(bulleted_html(list(DECLARATION_CLAUSES)), L.STYLE_BODY_SMALL))
     story.append(Spacer(1, 6))
 
+    # Client column only. A cost agreement is an agreement BETWEEN the firm
+    # and the client, so both sign it; a declaration is the applicant's own
+    # statement, and the firm has nothing to attest to on it. The FOR WINZOY
+    # LEGAL box was never going to be filled, and an empty signature box on a
+    # signed document reads as an oversight.
     story.append(compact_signature_block(
         client_name=data.signer_name or data.client_name,
         rep_name=data.rep_name,
@@ -471,6 +476,7 @@ def _build_story(data: DeclarationData) -> list:
         rep_sig_bytes=decode_data_uri(data.rep_signature_data),
         signed_date_text=data.signed_at or data.date,
         today_text=datetime.now().strftime("%d/%m/%Y"),
+        client_only=True,
     ))
 
     return story
