@@ -189,6 +189,12 @@ from costagreements.builders.visa_870 import (
     build_visa_870_cost_agreement,
     validate_visa_870_cost_agreement,
 )
+from costagreements.builders.declaration import (
+    DeclarationData,
+    apply_declaration_normalisations,
+    build_declaration,
+    validate_declaration,
+)
 from costagreements.schema import GeneralCostAgreementData
 from costagreements.validate import apply_normalisations as apply_ca_normalisations
 from costagreements.validate import validate_general_cost_agreement
@@ -209,6 +215,7 @@ COST_AGREEMENT_BUILDERS: dict[str, callable] = {  # type: ignore[type-arg]
     "visa_870": build_visa_870_cost_agreement,
     "invoice": build_invoice,
     "receipt": build_receipt,
+    "declaration": build_declaration,
 }
 COST_AGREEMENT_SCHEMAS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": GeneralCostAgreementData.from_payload,
@@ -226,6 +233,7 @@ COST_AGREEMENT_SCHEMAS: dict[str, callable] = {  # type: ignore[type-arg]
     "visa_870": Visa870CostAgreementData.from_payload,
     "invoice": InvoiceData.from_payload,
     "receipt": ReceiptData.from_payload,
+    "declaration": DeclarationData.from_payload,
 }
 COST_AGREEMENT_VALIDATORS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": validate_general_cost_agreement,
@@ -243,6 +251,7 @@ COST_AGREEMENT_VALIDATORS: dict[str, callable] = {  # type: ignore[type-arg]
     "visa_870": validate_visa_870_cost_agreement,
     "invoice": validate_invoice,
     "receipt": validate_receipt,
+    "declaration": validate_declaration,
 }
 COST_AGREEMENT_NORMALISERS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": apply_ca_normalisations,
@@ -260,6 +269,7 @@ COST_AGREEMENT_NORMALISERS: dict[str, callable] = {  # type: ignore[type-arg]
     "visa_870": apply_visa_870_normalisations,
     "invoice": apply_invoice_normalisations,
     "receipt": apply_receipt_normalisations,
+    "declaration": apply_declaration_normalisations,
 }
 
 
