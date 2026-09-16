@@ -755,12 +755,21 @@ def compact_signature_block(client_name: str, rep_name: str, capacity: str | Non
                              signed_date_text: str, today_text: str,
                              sig_h: float = 44,
                              sigmeta: SigMetaState | None = None,
-                             rep_signature_url: str | None = None) -> KeepTogether:
+                             rep_signature_url: str | None = None,
+                             client_only: bool = False) -> KeepTogether:
     """The shorter signature block (no 'SIGNATURES' banner/intro sentence)
     used by Visa 482 / Visa 870 / Skills Assessment Only -- same
     client-initials/signature/date + admin-staff-signature content and the
     same KeepTogether guarantee, just more compact vertically. Mirrors
-    winzoylegal_new's ``compactSignatureBlockHeight()`` callers."""
+    winzoylegal_new's ``compactSignatureBlockHeight()`` callers.
+
+    ``client_only`` drops the FOR WINZOY LEGAL column, for a document only
+    the applicant signs. The Declaration is one: a cost agreement is an
+    agreement BETWEEN two parties and both sign it, but a declaration is
+    the applicant's own statement -- a firm signature box on it has nobody
+    to fill it, and an empty one on a signed document reads as an oversight.
+    The column keeps its width, so the client's box is the same size on
+    every document they sign."""
     box_w = (L.CONTENT_W - 24) / 2
 
     client_recorder, rep_recorder = _sigmeta_extras(
@@ -769,6 +778,23 @@ def compact_signature_block(client_name: str, rep_name: str, capacity: str | Non
 
     client_col = _signature_column("Client Signature", client_name, client_sig_bytes,
                                     signed_date_text, box_w, sig_h, box_recorder=client_recorder)
+
+    if client_only:
+        cols_table = Table([[client_col]], colWidths=[box_w])
+        # ReportLab centres a table narrower than the frame. The two-column
+        # block fills the width so it never had to say this; one column on
+        # its own would drift to the middle of the page, away from where the
+        # client's signature sits on every other document.
+        cols_table.hAlign = "LEFT"
+        cols_table.setStyle(TableStyle([
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        return KeepTogether([Spacer(1, L.SIG_BLOCK_GAP), cols_table])
+
     rep_col = _signature_column("FOR WINZOY LEGAL", rep_name, rep_sig_bytes,
                                  today_text, box_w, sig_h,
                                  capacity=capacity, lpn=lpn, marn=marn, box_recorder=rep_recorder)
