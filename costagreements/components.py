@@ -63,7 +63,31 @@ def esc(text) -> str:
 
 
 def bulleted_html(items: list[str], gap: str = "<br/>") -> str:
-    return gap.join(f"•  {esc(item)}" for item in items)
+    """Bullet lines for a Paragraph.
+
+    Most callers pass hardcoded boilerplate, which is plain text and is
+    escaped as it always was. But the staff-authored ``service_bullets``
+    field arrives here too (via ``works_fee_table`` for the general,
+    divorce, BFA and ART agreements, and directly for JRP), and since the
+    frontend moved that field to the rich-text editor it is a single blob
+    of TipTap HTML with no newlines in it. Escaping that printed the whole
+    ``<ul><li><p>...`` into the PDF as visible tags -- the same bug
+    ``rich_text_to_paragraph_markup`` was written to fix for the note box.
+
+    An item that already carries its own ``<ul>``/``<ol>`` markers is not
+    given another bullet on top.
+    """
+    parts: list[str] = []
+    for item in items:
+        text = item or ""
+        if not _HTML_TAG_RE.search(text):
+            parts.append(f"•  {esc(text)}")
+            continue
+        markup = rich_text_to_paragraph_markup(text)
+        if not markup:
+            continue
+        parts.append(markup if re.search(r"<(ul|ol)[\s>]", text, re.I) else f"•  {markup}")
+    return gap.join(parts)
 
 
 def multiline_html(text: str) -> str:
@@ -79,20 +103,75 @@ _INLINE_TAG_MAP = {
 }
 _BLOCK_BREAK_TAGS = {"p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li"}
 
+# Heading font sizes, matched to RichTextEditor's own h1/h2/h3 scale. The
+# body style they sit inside is 9pt, so these are deliberately modest.
+_HEADING_SIZES = {"h1": 13, "h2": 11, "h3": 10, "h4": 10, "h5": 10, "h6": 10}
+
+# #rgb / #rrggbb only. Anything else (a named colour, rgb(), a CSS
+# variable) is dropped rather than passed to ReportLab, which raises on a
+# colour it can't parse and would take the whole PDF down with it.
+_HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+_CSS_COLOR_RE = re.compile(r"(?:^|;)\s*color\s*:\s*([^;]+)", re.I)
+_CSS_BG_RE = re.compile(r"(?:^|;)\s*background-color\s*:\s*([^;]+)", re.I)
+_CSS_SIZE_RE = re.compile(r"(?:^|;)\s*font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*px", re.I)
+
+
+def _safe_hex(value: str | None) -> str | None:
+    if not value:
+        return None
+    v = value.strip()
+    return v if _HEX_COLOR_RE.match(v) else None
+
+
+def _font_attrs_for(tag: str, attrs: dict[str, str]) -> str:
+    """The ``<font>`` attribute string for one TipTap inline tag, or ""."""
+    style = attrs.get("style") or ""
+    parts: list[str] = []
+
+    if tag == "span":
+        m = _CSS_COLOR_RE.search(style)
+        color = _safe_hex(m.group(1) if m else None)
+        if color:
+            parts.append(f'color="{color}"')
+        m = _CSS_SIZE_RE.search(style)
+        if m:
+            # px in a browser vs pt here: close enough at these sizes, and
+            # clamped so a 32px heading can't blow the frame apart.
+            size = max(6, min(24, round(float(m.group(1)))))
+            parts.append(f'size="{size}"')
+    elif tag == "mark":
+        # TipTap's Highlight writes data-color; some pastes carry the CSS.
+        m = _CSS_BG_RE.search(style)
+        color = _safe_hex(attrs.get("data-color")) or _safe_hex(m.group(1) if m else None)
+        # A highlight with no usable colour still reads as highlighted.
+        parts.append(f'backColor="{color or "#fef08a"}"')
+
+    return (" " + " ".join(parts)) if parts else ""
+
 
 class _RichTextToParagraphMarkup(HTMLParser):
     """Converts TipTap/ProseMirror HTML into ReportLab Paragraph markup.
 
-    Only a safelisted set of inline tags round-trip into ReportLab's own
-    ``<b>``/``<i>``/``<u>``/``<strike>`` tags; colour, font-size and
-    alignment (all present in the frontend's RichTextEditor toolbar) are
-    dropped since Paragraph markup has no equivalent without per-run
-    style objects. Bullet and numbered lists become "* " / "1. "-prefixed
-    lines -- ReportLab Paragraph has no native list flowable that composes
-    inside a Table cell the way staff_note_box() needs. All text content
-    goes through esc() before being placed between markup tags, so raw
-    '<'/'&' typed by staff (or anything else in the HTML) can't be
-    misread as ReportLab markup.
+    Bold/italic/underline/strike round-trip into ReportLab's own
+    ``<b>``/``<i>``/``<u>``/``<strike>``. Text colour, highlight and font
+    size round-trip as ``<font color=... backColor=... size=...>``, which
+    is how ReportLab expresses all three (see ``_font_attrs_for``); only
+    ``#rgb``/``#rrggbb`` values are accepted, because ReportLab raises on a
+    colour it can't parse. Headings become a sized, bold run.
+
+    Bullet and numbered lists become "* " / "1. "-prefixed lines --
+    ReportLab Paragraph has no native list flowable that composes inside a
+    Table cell the way staff_note_box() needs.
+
+    **Alignment is still dropped**, and deliberately: it is a
+    ParagraphStyle property, not inline markup, so honouring it per block
+    would mean splitting one field into several Paragraph flowables. The
+    editor's alignment buttons therefore have no effect on the PDF.
+
+    All text content goes through esc() before being placed between markup
+    tags, so raw '<'/'&' typed by staff (or anything else in the HTML)
+    can't be misread as ReportLab markup, and every tag is emitted by this
+    class rather than copied from the input.
     """
 
     def __init__(self):
@@ -100,11 +179,19 @@ class _RichTextToParagraphMarkup(HTMLParser):
         self.out: list[str] = []
         self._list_stack: list[str] = []
         self._list_counters: list[int] = []
+        # Which ReportLab tags each still-open HTML element emitted, so its
+        # close tag emits exactly those again in reverse. Emitting closers
+        # positionally (what this did before) mismatched them as soon as two
+        # marks overlapped -- bold inside a colour span produced
+        # "<font><b>text</font></b>", which ReportLab rejects outright.
+        self._open: list[tuple[str, list[str]]] = []
 
     def handle_starttag(self, tag, attrs):
+        attrd = {k.lower(): (v or "") for k, v in attrs}
         if tag in ("ul", "ol"):
             self._list_stack.append(tag)
             self._list_counters.append(0)
+            self._open.append((tag, []))
         elif tag == "li":
             depth = max(0, len(self._list_stack) - 1)
             indent = "&nbsp;&nbsp;&nbsp;&nbsp;" * depth
@@ -113,24 +200,63 @@ class _RichTextToParagraphMarkup(HTMLParser):
                 self.out.append(f"{indent}{self._list_counters[-1]}. ")
             else:
                 self.out.append(f"{indent}• ")
+            self._open.append((tag, []))
         elif tag == "br":
+            self.out.append("<br/>")  # void: never pushed
+        elif tag == "hr":
             self.out.append("<br/>")
+        elif tag in _HEADING_SIZES:
+            emitted = ["font", "b"]
+            self.out.append(f'<font size="{_HEADING_SIZES[tag]}"><b>')
+            self._open.append((tag, emitted))
         elif tag in _INLINE_TAG_MAP:
-            self.out.append(f"<{_INLINE_TAG_MAP[tag]}>")
+            rl = _INLINE_TAG_MAP[tag]
+            self.out.append(f"<{rl}>")
+            self._open.append((tag, [rl]))
+        elif tag in ("span", "mark"):
+            # Colour, highlight and font size have no ReportLab tag of their
+            # own -- they are all attributes of <font>.
+            font_attrs = _font_attrs_for(tag, attrd)
+            if font_attrs:
+                self.out.append(f"<font{font_attrs}>")
+                self._open.append((tag, ["font"]))
+            else:
+                self._open.append((tag, []))
+        else:
+            # Unknown element: keep its text, drop the tag.
+            self._open.append((tag, []))
 
     def handle_endtag(self, tag):
+        if tag in ("br", "hr"):
+            return
+        # Close the innermost matching element, discarding anything left
+        # unclosed inside it (malformed input shouldn't leak open tags).
+        for i in range(len(self._open) - 1, -1, -1):
+            if self._open[i][0] != tag:
+                continue
+            for _, emitted in reversed(self._open[i:]):
+                for rl in reversed(emitted):
+                    self.out.append(f"</{rl}>")
+            del self._open[i:]
+            break
         if tag in ("ul", "ol"):
             if self._list_stack:
                 self._list_stack.pop()
                 self._list_counters.pop()
-        elif tag in _BLOCK_BREAK_TAGS:
+        if tag in _BLOCK_BREAK_TAGS:
             self.out.append("<br/>")
-        elif tag in _INLINE_TAG_MAP:
-            self.out.append(f"</{_INLINE_TAG_MAP[tag]}>")
 
     def handle_data(self, data):
         if data:
             self.out.append(esc(data))
+
+    def close(self):
+        super().close()
+        # Anything still open at the end of a truncated fragment.
+        for _, emitted in reversed(self._open):
+            for rl in reversed(emitted):
+                self.out.append(f"</{rl}>")
+        self._open.clear()
 
 
 def rich_text_to_paragraph_markup(text: str) -> str:
