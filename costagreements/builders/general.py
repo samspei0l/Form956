@@ -50,7 +50,7 @@ from ..components import (
     two_column_terms_box,
     works_fee_table,
 )
-from ..money import apply_vac_surcharge, fmt_amt, parse_amt, sum_amounts
+from ..money import fmt_amt, parse_amt, sum_amounts
 from ..schema import GeneralCostAgreementData
 from ..sigmeta import SigMetaState
 
@@ -161,18 +161,18 @@ def _build_story(data: GeneralCostAgreementData, today_short: str) -> list:
     ))
     story.append(Spacer(1, 18))
 
-    vac_surcharged = apply_vac_surcharge(data.visa_lodgment_fee)
-    lodge_amt = f"${fmt_amt(vac_surcharged)}"
+    vac_amount = parse_amt(data.visa_lodgment_fee)
+    lodge_amt = f"${fmt_amt(vac_amount)}"
     if data.lodgment_uses_client_card:
         lodge_amt += " (using client card)"
     story.append(disbursement_table([
         ("Service Fee (Photocopies, postage)", f"${fmt_amt(data.service_fee)}"),
-        ("Visa Application Charge (VAC) incl. 1.4% surcharge", lodge_amt),
+        ("Visa Application Charge (VAC)", lodge_amt),
     ]))
     story.append(Spacer(1, 24))
 
     professional_cost = parse_amt(data.professional_fee)
-    disbursements_cost = sum_amounts(data.service_fee) + vac_surcharged
+    disbursements_cost = sum_amounts(data.service_fee) + vac_amount
     story.append(cost_summary_table(professional_cost, disbursements_cost, total_suffix=" incl GST"))
     story.append(Spacer(1, 14))
 

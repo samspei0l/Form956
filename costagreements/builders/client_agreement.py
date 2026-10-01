@@ -60,7 +60,7 @@ from ..components import (
     staff_note_box,
     works_fee_table,
 )
-from ..money import apply_vac_surcharge, fmt_amt, parse_amt, sum_amounts
+from ..money import fmt_amt, parse_amt, sum_amounts
 from ..sigmeta import SigMetaState
 
 
@@ -350,17 +350,17 @@ def _build_story(data: ClientAgreementData, today_short: str) -> list:
     multi = len(charges) > 1
     for idx, charge in enumerate(charges):
         label = (
-            f"Visa Application Charge (VAC) incl. 1.4% surcharge ({idx + 1})"
+            f"Visa Application Charge (VAC) ({idx + 1})"
             if multi else
-            "Visa Application Charge (VAC) incl. 1.4% surcharge"
+            "Visa Application Charge (VAC)"
         )
-        amount_text = f"${fmt_amt(apply_vac_surcharge(charge))}" if charge else "$"
+        amount_text = f"${fmt_amt(charge)}" if charge else "$"
         disb_rows.append((label, amount_text))
     story.append(disbursement_table(disb_rows))
     story.append(Spacer(1, 24))
 
     professional_cost = parse_amt(data.professional_fee)
-    vac_total = sum(apply_vac_surcharge(c) for c in charges)
+    vac_total = sum_amounts(*charges)
     disbursements_cost = sum_amounts(data.service_fee) + vac_total
     story.append(cost_summary_table(professional_cost, disbursements_cost, total_suffix=" incl GST"))
     story.append(Spacer(1, 14))

@@ -10,8 +10,7 @@ signature/date spacing bugs.
 
 This type differs from the General Cost Agreement in three structural
 ways (all mirrored from the TS source, not invented here):
-  1. The disbursement table's second row is a flat ART lodgment fee with
-     no VAC card surcharge applied (unlike General's visa lodgment fee).
+  1. The disbursement table's second row is a flat ART lodgment fee.
   2. There's a dedicated multi-row "PAYMENT SCHEDULE" table (3 editable
      stages + any extra caller-supplied stages) instead of a single
      paragraph.
@@ -89,7 +88,7 @@ class ArtCostAgreementData:
 
     # Disbursement table
     service_fee: str
-    lodgment_fee: str  # ART lodgment fee (no VAC card surcharge, unlike General's visa_lodgment_fee)
+    lodgment_fee: str  # ART lodgment fee
     rep_name: str
 
     service_bullets: list[str] = field(default_factory=list)
