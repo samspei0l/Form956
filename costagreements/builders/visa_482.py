@@ -170,7 +170,7 @@ from ..components import (
     staff_note_box,
     two_column_terms_box,
 )
-from ..money import apply_vac_surcharge, fmt_amt, parse_amt
+from ..money import fmt_amt, parse_amt
 from ..sigmeta import SigMetaState
 
 SIG_BOX_H = 36  # matches buildVisa482CostAgreementPdf.ts's `const sigH = 36;`
@@ -576,40 +576,33 @@ def _saf_bullets(data: Visa482CostAgreementData) -> list[str]:
     return bullets
 
 
-def _disb_bullets_html(data: Visa482CostAgreementData, vac_surcharged: float) -> str:
+def _disb_bullets_html(data: Visa482CostAgreementData, vac_amount: float) -> str:
     lines = [
         f"Business Sponsorship Fee: AUD {fmt_amt(data.sponsorship_fee or '420')}",
         f"Nomination Fee: AUD {fmt_amt(data.nomination_fee or '330')}",
-        f"Visa Application Charge (VAC) incl. 1.4% surcharge: AUD {fmt_amt(vac_surcharged)} "
+        f"Visa Application Charge (VAC): AUD {fmt_amt(vac_amount)} "
         f"({data.stream or 'Core Skills Stream'})",
         *_saf_bullets(data),
     ]
     return bulleted_html(lines)
 
 
-def _estimate_table(data: Visa482CostAgreementData, vac_surcharged: float) -> Table:
+def _estimate_table(data: Visa482CostAgreementData, vac_amount: float) -> Table:
     """The 'D. Estimate of Professional Fees and Internal Expenses' 3-row
     table -- matches buildVisa482CostAgreementPdf.ts's own drawTableRow()
-    calls (blank/'Amount' shaded header, centred amount column). Row 2's
-    label carries a fixed '(All disbursements incur 1.4% surcharge)'
-    sub-note -- unlike 186's/skilled_visa's 'using client card' note,
-    this one isn't conditional on lodgement_uses_client_card (which the
-    TS source never reads -- see module docstring)."""
+    calls (blank/'Amount' shaded header, centred amount column)."""
     w1 = L.CONTENT_W * 0.50
     w2 = L.CONTENT_W * 0.50
     head_amt_style = ParagraphStyle("V482_EstimateHeadAmt", fontName=L.FONT_BOLD, fontSize=10, alignment=1)
     amt_style = ParagraphStyle("V482_EstimateAmt", fontName=L.FONT_REGULAR, fontSize=10, alignment=1)
 
-    disb_label = (
-        "2. Disbursement Lodgement Fees<br/>"
-        '<font size="8">(All disbursements incur 1.4% surcharge)</font>'
-    )
+    disb_label = "2. Disbursement Lodgement Fees"
 
     data_rows = [
         ["", PT("Amount", head_amt_style)],
         [PT("1. Professional Cost", L.STYLE_BODY),
          P(f"${esc(fmt_amt(data.professional_fee))} inclusive of GST", amt_style)],
-        [P(disb_label, L.STYLE_BODY), P(_disb_bullets_html(data, vac_surcharged), _STYLE_DISB_CELL)],
+        [PT(disb_label, L.STYLE_BODY), P(_disb_bullets_html(data, vac_amount), _STYLE_DISB_CELL)],
     ]
     t = Table(data_rows, colWidths=[w1, w2])
     t.setStyle(TableStyle([
@@ -808,8 +801,8 @@ def _build_story(data: Visa482CostAgreementData, today_short: str) -> list:
     story.append(P("D. Estimate of Professional Fees and Internal Expenses", L.STYLE_H2))
     story.append(Spacer(1, 4))
 
-    vac_surcharged = apply_vac_surcharge(data.visa_application_fee or "2770")
-    story.append(_estimate_table(data, vac_surcharged))
+    vac_amount = parse_amt(data.visa_application_fee or "2770")
+    story.append(_estimate_table(data, vac_amount))
     story.append(Spacer(1, 10))
 
     # NOTE: disbursements_cost comes straight from the staff-entered

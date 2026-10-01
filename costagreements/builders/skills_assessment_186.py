@@ -77,7 +77,7 @@ Structural decisions where the TS source was ambiguous:
     disbursements total (matching the TS source's own inline comment: it
     is an either/or amount depending on employer turnover, listed for
     disclosure only) -- ``disbursements_cost`` is
-    ``nomination_fee + vac_surcharged`` only, same shape as
+    ``nomination_fee + vac_amount`` only, same shape as
     skilled_visa.py's cost math.
 
 This is a synchronous, single-call generator, but the returned PDF is not
@@ -123,7 +123,7 @@ from ..components import (
     staff_note_box,
     two_column_terms_box,
 )
-from ..money import apply_vac_surcharge, fmt_amt, parse_amt, sum_amounts
+from ..money import fmt_amt, parse_amt, sum_amounts
 from ..sigmeta import SigMetaState
 
 
@@ -151,7 +151,7 @@ class SkillsAssessment186CostAgreementData:
     # Fees
     professional_fee: str         # e.g. 5500
     nomination_fee: str           # e.g. 540
-    visa_application_fee: str     # e.g. 4910 (excl 1.4% card)
+    visa_application_fee: str     # e.g. 4910
 
     # Processing times
     sponsorship_processing_time: str  # 14 - 60 days
@@ -395,7 +395,7 @@ def _build_ack_text(client_name: str, languages: list[str]) -> str:
     )
 
 
-def _disb_bullets_html(data: "SkillsAssessment186CostAgreementData", vac_surcharged: float) -> str:
+def _disb_bullets_html(data: "SkillsAssessment186CostAgreementData", vac_amount: float) -> str:
     """Row 2's multi-line disbursement cell -- matches
     buildSkillsAssessment186CostAgreementPdf.ts's own ``disbLines`` array:
     the SAF levy is deliberately drawn as two lines ('...under $10m)' then
@@ -406,14 +406,14 @@ def _disb_bullets_html(data: "SkillsAssessment186CostAgreementData", vac_surchar
     saf_large = data.saf_levy_large or "5,000"
     return (
         f"•  Nomination Fee: AUD {esc(nomination_fee_text)}<br/>"
-        f"•  Visa Application Charge (VAC) incl. 1.4% surcharge: "
-        f"${esc(fmt_amt(vac_surcharged))} (186 Direct Entry)<br/>"
+        f"•  Visa Application Charge (VAC): "
+        f"${esc(fmt_amt(vac_amount))} (186 Direct Entry)<br/>"
         f"•  Skilling Australians Fund (SAF) levy: ${esc(saf_small)} (turnover under $10m)<br/>"
         f"   or ${esc(saf_large)} (turnover $10m or more)."
     )
 
 
-def _estimate_table(data: SkillsAssessment186CostAgreementData, vac_surcharged: float) -> Table:
+def _estimate_table(data: SkillsAssessment186CostAgreementData, vac_amount: float) -> Table:
     """The 'D. Estimate of Professional Fees and Internal Expenses' 3-row
     table -- matches buildSkillsAssessment186CostAgreementPdf.ts's own
     drawTableRow() calls (blank/'Amount' shaded header, centred amount
@@ -429,7 +429,7 @@ def _estimate_table(data: SkillsAssessment186CostAgreementData, vac_surcharged: 
         ["", PT("Amount", head_amt_style)],
         [PT("1. Professional Cost", L.STYLE_BODY),
          P(f"${esc(fmt_amt(data.professional_fee))} inclusive of GST", amt_style)],
-        [PT(disb_label, L.STYLE_BODY), P(_disb_bullets_html(data, vac_surcharged), _STYLE_DISB_CELL)],
+        [PT(disb_label, L.STYLE_BODY), P(_disb_bullets_html(data, vac_amount), _STYLE_DISB_CELL)],
     ]
     t = Table(data_rows, colWidths=[w1, w2])
     t.setStyle(TableStyle([
@@ -582,15 +582,15 @@ def _build_story(data: SkillsAssessment186CostAgreementData, today_short: str) -
     story.append(P("D. Estimate of Professional Fees and Internal Expenses", L.STYLE_H2))
     story.append(Spacer(1, 4))
 
-    vac_surcharged = apply_vac_surcharge(data.visa_application_fee or "4910")
-    story.append(_estimate_table(data, vac_surcharged))
+    vac_amount = parse_amt(data.visa_application_fee or "4910")
+    story.append(_estimate_table(data, vac_amount))
     story.append(Spacer(1, 10))
 
     # NOTE: SAF levy is an either/or amount depending on employer turnover, so it
     # is deliberately not summed into the disbursements total below -- matching
     # buildSkillsAssessment186CostAgreementPdf.ts's own inline comment.
     professional_cost = parse_amt(data.professional_fee)
-    disbursements_cost = sum_amounts(data.nomination_fee) + vac_surcharged
+    disbursements_cost = sum_amounts(data.nomination_fee) + vac_amount
     story.append(cost_summary_table(professional_cost, disbursements_cost, total_suffix=" incl GST"))
     story.append(Spacer(1, 14))
 

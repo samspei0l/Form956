@@ -27,10 +27,9 @@ files -- it additionally carries:
   - the full "SIGNATURES" banner signature block (``components.
     signature_block()``) rather than skills_assessment_only's compact,
     banner-less variant (``components.compact_signature_block()``);
-  - a VAC-surcharge-inclusive Cost Summary total (via
-    ``costagreements/money.py``'s ``apply_vac_surcharge``), matching the
-    nomination/visa fee math skilled_visa.py already ports, folded in
-    alongside the skills-assessment-specific disbursement fees.
+  - a Cost Summary that adds the visa application charge as entered,
+    alongside the skills-assessment disbursement fees, matching the
+    nomination/visa fee math skilled_visa.py already ports.
 skilled_visa.py is the closer sibling for the nomination/visa-shaped
 fields (anzsco/visa_subclass/nomination_state/state_nomination_fee/
 visa_application_fee) -- this module reuses that shape verbatim for those
@@ -114,7 +113,7 @@ from ..components import (
     staff_note_box,
     two_column_terms_box,
 )
-from ..money import apply_vac_surcharge, fmt_amt, parse_amt, sum_amounts
+from ..money import fmt_amt, parse_amt, sum_amounts
 from ..sigmeta import SigMetaState
 
 
@@ -399,13 +398,13 @@ def _build_ack_text(client_name: str, languages: list[str]) -> str:
     )
 
 
-def _estimate_table(data: SkillsAssessmentCostAgreementData, vac_surcharged: float) -> Table:
+def _estimate_table(data: SkillsAssessmentCostAgreementData, vac_amount: float) -> Table:
     """The 'D. Estimate of Professional Fees and Internal Expenses' 3-row
     table -- matches buildSkillsAssessmentCostAgreementPdf.ts's own
     drawTableRow() calls (blank/'Amount' shaded header, centred amount
     column). Row 2 (Disbursement Lodgement Fees) has a multi-line right
     cell of four bulleted sub-lines (assessment authority fee, priority
-    processing fee, state nomination fee, VAC incl. surcharge) -- no intro
+    processing fee, state nomination fee, visa application charge) -- no intro
     sentence, unlike skilled_visa.py's equivalent 2-bullet row."""
     w1 = L.CONTENT_W * 0.50
     w2 = L.CONTENT_W * 0.50
@@ -419,7 +418,7 @@ def _estimate_table(data: SkillsAssessmentCostAgreementData, vac_surcharged: flo
         f"Priority Processing Fee (if applicable): {priority_fee_text}",
         f"State Nomination fee (visa {data.visa_subclass or '491/190'}): "
         f"${fmt_amt(data.state_nomination_fee or '370')} (varies by state)",
-        f"Visa Application Charge (VAC) incl. 1.4% surcharge: ${fmt_amt(vac_surcharged)} "
+        f"Visa Application Charge (VAC): ${fmt_amt(vac_amount)} "
         f"(main applicant, visa {data.visa_subclass or '491/190/189'})",
     ]
     disb_label = f"2. Disbursement Lodgement Fees{' (using client card)' if data.lodgement_uses_client_card else ''}"
@@ -578,14 +577,14 @@ def _build_story(data: SkillsAssessmentCostAgreementData, today_short: str) -> l
     story.append(P("D. Estimate of Professional Fees and Internal Expenses", L.STYLE_H2))
     story.append(Spacer(1, 4))
 
-    vac_surcharged = apply_vac_surcharge(data.visa_application_fee or "4770")
-    story.append(_estimate_table(data, vac_surcharged))
+    vac_amount = parse_amt(data.visa_application_fee or "4770")
+    story.append(_estimate_table(data, vac_amount))
     story.append(Spacer(1, 10))
 
     professional_cost = parse_amt(data.professional_fee)
     disbursements_cost = sum_amounts(
         data.skill_assessment_authority_fee, data.priority_processing_fee, data.state_nomination_fee,
-    ) + vac_surcharged
+    ) + vac_amount
     story.append(cost_summary_table(professional_cost, disbursements_cost, total_suffix=" incl GST"))
     story.append(Spacer(1, 14))
 

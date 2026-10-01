@@ -55,8 +55,8 @@ precedent:
   4. **The Visa Application Charge (VAC) is a menu of options, not a
      single figure.** visa_482/skilled_visa each disclose exactly one VAC
      amount. Here, up to three VAC options can be listed as bullet
-     sub-rows under a single "Visa Application Charge (VAC) incl. 1.4%
-     surcharge:" header cell: an "up to 3 years" tier and an "up to 5
+     sub-rows under a single "Visa Application Charge (VAC):" header
+     cell: an "up to 3 years" tier and an "up to 5
      years" tier (each independently toggleable via ``show_vac_3yr``/
      ``show_vac_5yr``, defaulting to shown -- the TS source's own
      ``data.showVac3yr !== false`` check, mirrored here the same way
@@ -502,12 +502,12 @@ def _disbursement_table(data: Visa870CostAgreementData) -> Table:
 
     header_left = "Disbursement" + (" (Paid by client's card)" if data.lodgement_uses_client_card else "")
     rows: list[list] = [
-        [PT(header_left, L.STYLE_BOLD), P("Amount (incl 1.4%<br/>credit card surcharge)", _STYLE_DISB_HEAD_AMT)],
+        [PT(header_left, L.STYLE_BOLD), P("Amount", _STYLE_DISB_HEAD_AMT)],
         [PT("-  Service Fee (Photocopies, postage)", L.STYLE_BODY),
          P(esc(_service_fee_text(data.service_fee)), _STYLE_DISB_AMT)],
         [PT("-  Sponsorship Application Fee", L.STYLE_BODY),
          P(f"${esc(fmt_amt(data.sponsorship_application_fee or '425.88'))}", _STYLE_DISB_AMT)],
-        [PT("-  Visa Application Charge (VAC) incl. 1.4% surcharge:", _STYLE_DISB_SMALL), ""],
+        [PT("-  Visa Application Charge (VAC):", _STYLE_DISB_SMALL), ""],
     ]
     for label, amount in _vac_options(data):
         rows.append([

@@ -25,17 +25,10 @@ mirrored from the TS source, not invented here):
      Breach of Payment Schedule and Termination", and "H. Processing
      Times and Outcome" (a visa-outcome disclaimer with six italic
      dependency factors a-f, unique to this agreement type).
-  3. The disbursement lodgement fee line in the "C. Estimate" table still
-     displays the raw base amount with the literal "+ 1.4% visa card fee"
-     suffix text (and "(client card)" when lodgement_uses_client_card is
-     set) -- that part is unchanged disclosure text. But the Cost Summary
-     table's "Total Disbursements Cost"/"Total Cost" rows now use
-     costagreements/money.py's ``apply_vac_surcharge`` on the disbursement
-     figure, matching winzoylegal_new's 2026-09-07 "Added 1.4% visa
-     surcharge" commit (6e44f3b), which swapped ``sumAmounts`` for
-     ``applyVacSurcharge`` in exactly that one spot (and did the same in
-     the Lovable dashboard's own auto-calculated Total Cost field) without
-     touching the estimate-table row's display text.
+  3. The disbursement lodgement fee is the amount staff enter. The
+     "C. Estimate" row and the Cost Summary both use that figure, with
+     no card surcharge added. "(client card)" is appended on the estimate
+     row when lodgement_uses_client_card is set.
   4. "WHAT WE/YOU MUST DO" and "REGULATORY COMPLIANCE AND APPLICABLE LAW"
      use the same body text as buildJrpCostAgreementPdf.ts's (both are
      DoHA-visa-flavoured -- "No Guarantee of Visa Outcome", not ART's
@@ -128,7 +121,7 @@ from ..components import (
     staff_note_box,
     two_column_terms_box,
 )
-from ..money import apply_vac_surcharge, fmt_amt, parse_amt
+from ..money import fmt_amt, parse_amt
 from ..sigmeta import SigMetaState
 
 
@@ -626,14 +619,14 @@ def _build_story(data: PartnerVisaCostAgreementData, today_short: str) -> list:
     story.append(P("C. Estimate of Professional Fees and Internal Expenses", L.STYLE_H2))
     story.append(Spacer(1, 4))
     professional_fee_text = f"${fmt_amt(data.professional_fee)} inclusive of GST"
-    lodgement_text = f"${fmt_amt(data.disbursement_lodgement_fee)} + 1.4% visa card fee"
+    lodgement_text = f"${fmt_amt(data.disbursement_lodgement_fee)}"
     if data.lodgement_uses_client_card:
         lodgement_text += " (client card)"
     story.append(_estimate_table(professional_fee_text, lodgement_text))
     story.append(Spacer(1, 10))
 
     professional_cost = parse_amt(data.professional_fee)
-    disbursements_cost = apply_vac_surcharge(data.disbursement_lodgement_fee)
+    disbursements_cost = parse_amt(data.disbursement_lodgement_fee)
     story.append(cost_summary_table(professional_cost, disbursements_cost, total_suffix=" inclusive of GST"))
     story.append(Spacer(1, 14))
 

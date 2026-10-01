@@ -171,8 +171,8 @@ for content**; only the per-page chrome draws at absolute positions.
   unknown until layout completes, so it uses the two-pass `NumberedCanvas`
   recipe (buffer each page in `showPage`, replay in `save`). Header and
   watermark draw in the `onPage` callback.
-- `money.py` — `parse_amt`/`fmt_amt`/`sum_amounts` and the 1.4%
-  `VAC_SURCHARGE_RATE` DoHA card surcharge.
+- `money.py` — `parse_amt`/`fmt_amt`/`sum_amounts`. Visa application
+  charges are printed as entered; there is no card surcharge.
 - `sigmeta.py` — see below.
 - `schema.py` + `validate.py` — the *General* agreement's dataclass and
   validator. Every other type keeps its own alongside its builder.

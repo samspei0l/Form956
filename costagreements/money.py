@@ -2,8 +2,6 @@
 _shared/formatAmount.ts + _shared/costCalculations.ts."""
 from __future__ import annotations
 
-VAC_SURCHARGE_RATE = 0.014  # DoHA card-payment surcharge on top of the base VAC amount
-
 
 def parse_amt(v) -> float:
     """Parse a raw amount (string, possibly with thousand separators, or a
@@ -19,12 +17,6 @@ def parse_amt(v) -> float:
         return float(s)
     except ValueError:
         return 0.0
-
-
-def apply_vac_surcharge(base) -> float:
-    """Given the base VAC amount staff enters, return the amount incl. the
-    1.4% card surcharge."""
-    return parse_amt(base) * (1 + VAC_SURCHARGE_RATE)
 
 
 def sum_amounts(*values) -> float:

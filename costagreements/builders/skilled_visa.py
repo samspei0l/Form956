@@ -19,16 +19,11 @@ structural ways (all mirrored from the TS source, not invented here):
      line-item table like partner_visa's "C." table, but its second
      (Disbursement Lodgement Fee) row is a *multi-line* cell: an intro
      sentence plus two bulleted sub-lines (State Nomination fee, Visa
-     Application Charge incl. 1.4% surcharge) -- partner_visa's
-     equivalent row is a single line of plain text.
-  3. Unlike partner_visa (where the docstring calls out that the 1.4% VAC
-     surcharge is disclosure text only and deliberately excluded from the
-     Cost Summary table's totals math), the TS source here *does* fold
-     the surcharge into the totals:
-     ``disbursementsCost = sumAmounts(data.stateNominationFee) + vacSurcharged``.
-     This port matches that -- ``costagreements/money.py``'s
-     ``apply_vac_surcharge`` is used, and its result is included in
-     ``cost_summary_table()``'s ``disbursements_cost`` argument.
+     Application Charge) -- partner_visa's equivalent row is a single
+     line of plain text.
+  3. The Cost Summary adds the state nomination fee and the visa
+     application charge as entered:
+     ``disbursements_cost = sum_amounts(data.state_nomination_fee) + vac_amount``.
   4. The disbursement fees are two separate inputs (``state_nomination_fee``,
      ``visa_application_fee``) rather than partner_visa's single
      ``disbursement_lodgement_fee``, and there are two separate processing
@@ -136,7 +131,7 @@ from ..components import (
     staff_note_box,
     two_column_terms_box,
 )
-from ..money import apply_vac_surcharge, fmt_amt, parse_amt, sum_amounts
+from ..money import fmt_amt, parse_amt, sum_amounts
 from ..sigmeta import SigMetaState
 
 
@@ -541,20 +536,20 @@ def _build_story(data: SkilledVisaCostAgreementData, today_short: str) -> list:
     story.append(P("D. Estimate of Professional Fees and Internal Expenses", L.STYLE_H2))
     story.append(Spacer(1, 4))
 
-    vac_surcharged = apply_vac_surcharge(data.visa_application_fee or "4770")
+    vac_amount = parse_amt(data.visa_application_fee or "4770")
     professional_fee_text = f"${fmt_amt(data.professional_fee)} inclusive of GST"
     disb_label = f"2. Disbursement Lodgement Fee{' (using client card)' if data.lodgement_uses_client_card else ''}"
     disb_intro = f"Vary between visas {data.visa_subclass or '491/190/189'} and between states; payable as advised by the Department:"
     disb_bullets = [
         f"State Nomination fee (491/190): ${fmt_amt(data.state_nomination_fee or '370')} (varies by state)",
-        f"Visa Application Charge (VAC) incl. 1.4% surcharge: ${fmt_amt(vac_surcharged)} "
+        f"Visa Application Charge (VAC): ${fmt_amt(vac_amount)} "
         f"(main applicant, {data.visa_subclass or '491/190/189'})",
     ]
     story.append(_estimate_table(professional_fee_text, disb_label, disb_intro, disb_bullets))
     story.append(Spacer(1, 10))
 
     professional_cost = parse_amt(data.professional_fee)
-    disbursements_cost = sum_amounts(data.state_nomination_fee) + vac_surcharged
+    disbursements_cost = sum_amounts(data.state_nomination_fee) + vac_amount
     story.append(cost_summary_table(professional_cost, disbursements_cost, total_suffix=" inclusive of GST"))
     story.append(Spacer(1, 14))
 
