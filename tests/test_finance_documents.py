@@ -458,3 +458,41 @@ def test_health_lists_the_finance_document_types(client):
     types = client.get("/health").get_json()["cost_agreement_types"]
     assert "invoice" in types
     assert "receipt" in types
+
+
+# ------------------------------------------------------------ GST-free lines
+GST_FREE_PAYLOAD = dict(
+    INVOICE_MINIMAL_PAYLOAD,
+    line_items=[
+        {"description": "Professional Fees", "quantity": 1, "unit_price": 4400, "amount": 4400},
+        {"description": "Visa application charge (paid to the Department)", "quantity": 1,
+         "unit_price": 9365, "amount": 9365, "gst_free": True},
+    ],
+)
+
+
+def test_gst_is_extracted_from_taxable_lines_only():
+    """A visa application charge passed through at cost has no GST of the
+    firm's in it. Extracting 1/11th of it overstated the GST by $851.36."""
+    payload = {k: v for k, v in GST_FREE_PAYLOAD.items() if k not in ("subtotal", "gst_amount", "total")}
+    data = InvoiceData.from_payload(payload)
+    assert data.total == pytest.approx(13765.0)
+    assert data.gst_amount == pytest.approx(400.0)
+    assert data.subtotal == pytest.approx(13365.0)
+    assert data.line_items[1].gst_free is True
+    assert data.line_items[0].gst_free is False
+
+
+def test_gst_free_lines_are_marked_on_a_tax_invoice_only():
+    marked = _page_texts(_build_invoice(dict(GST_FREE_PAYLOAD, subtotal=13365, gst_amount=400, total=13765)))[0]
+    assert "GST-free" in marked
+    unmarked = _page_texts(_build_invoice(dict(GST_FREE_PAYLOAD, gst_rate_percent=0, gst_amount=0,
+                                                subtotal=13765, total=13765)))[0]
+    assert "GST-free" not in unmarked
+
+
+def test_gst_free_must_be_a_real_boolean():
+    """Only JSON true opts a line out of GST -- a truthy string must not."""
+    payload = dict(INVOICE_MINIMAL_PAYLOAD, line_items=[
+        {"description": "Fee", "quantity": 1, "unit_price": 110, "amount": 110, "gst_free": "false"}])
+    assert InvoiceData.from_payload(payload).line_items[0].gst_free is False

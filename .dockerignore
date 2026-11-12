@@ -1,0 +1,20 @@
+# Keep secrets, VCS history and local state out of the image -- the
+# Dockerfile's `COPY . /app` copies everything not listed here.
+.git
+.gitignore
+.venv
+venv
+env
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+tests
+uploads/cache/*.pdf
+out.pdf
+rajkumar
+rajkumar.pub
+*.pem
+id_rsa*
+id_ed25519*
+.env
+.env.*

@@ -187,6 +187,7 @@ The client retries 5xx up to 3 times with exponential backoff, maps
 | `pdfform/validate.py`             | per-form-956 domain validator     |
 | `pdfform/cache.py`                | SHA-256 idempotence cache         |
 | `pdfform/logging_setup.py`        | JSON logs + PII mask              |
+| `pdfform/auth.py`                 | caller authentication (AUTH_MODE) |
 | `forms/form956.yaml`              | Form 956 field map                |
 | `templates/form.html`             | Dynamic form renderer             |
 | `form956Service.ts`               | TypeScript client for React       |
@@ -200,6 +201,12 @@ The client retries 5xx up to 3 times with exponential backoff, maps
 | Variable          | Default              | Description                          |
 |-------------------|----------------------|--------------------------------------|
 | `LOG_LEVEL`       | `INFO`               | Python logging level                 |
-| `CORS_ORIGINS`    | `*`                  | Allowed origins for CORS             |
+| `AUTH_MODE`       | `off`                | `enforce` requires a Supabase session (`Authorization: Bearer`) or `X-Service-Token` on the PDF routes — see `pdfform/auth.py` |
+| `SUPABASE_URL`    | unset                | Supabase project URL, used to verify `Authorization` tokens |
+| `SUPABASE_PUBLISHABLE_KEY` | unset       | Supabase publishable (anon) key sent with the verification call; `SUPABASE_ANON_KEY` also accepted |
+| `FORM956_SERVICE_TOKEN` | unset          | Shared secret for server-to-server callers (the `submit-declaration` edge function) |
 | `RATE_LIMIT`      | `60/minute`          | Per-IP rate limit on `/fill`         |
 | `GUNICORN_CMD_ARGS` | unset              | Extra gunicorn flags (Docker)        |
+
+CORS origins are **not** configurable by environment: the allow-list is hardcoded in
+`app.py` (`*.lovable.app`, `https://pipeline.winzoylegal.com.au`, `http://localhost:8080`).

@@ -12,8 +12,9 @@ behind one app:
    the PDF's real AcroForm widget positions — no coordinate-based overlay
    drawing, no drift when the official template changes.
 2. **`/cost-agreements/*` — document generation** (`costagreements/`).
-   Builds 13 kinds of Winzoy Legal cost-agreement PDF *plus* the two
-   finance documents (`invoice`, `receipt`) *from scratch* with ReportLab
+   Builds 13 kinds of Winzoy Legal cost-agreement PDF *plus* the three
+   finance documents (`invoice`, `receipt`, `statement_of_services`) and
+   the client `declaration` *from scratch* with ReportLab
    Platypus flowables. Nothing is being filled in; there is no template
    PDF.
 
@@ -44,6 +45,8 @@ pytest tests/test_cost_agreements.py::test_sigmeta_boxes_match_actual_rendered_s
 # just one of the two subsystems
 pytest tests/test_cost_agreements.py
 pytest tests/test_finance_documents.py   # invoice + receipt
+pytest tests/test_statement_of_services.py
+pytest tests/test_auth.py
 
 # production server (2 workers x 4 threads)
 gunicorn -w 2 -k gthread --threads 4 -b 0.0.0.0:5000 app:app
@@ -182,7 +185,7 @@ for content**; only the per-page chrome draws at absolute positions.
 - `builders/*.py` — one module per agreement type (~400–1200 lines each),
   plus `invoice.py` / `receipt.py`.
 
-**The finance documents (`invoice`, `receipt`)** are not cost agreements,
+**The finance documents (`invoice`, `receipt`, `statement_of_services`)** are not cost agreements,
 but they are built by the same engine, wear the same brand chrome, and
 export the same four-part builder contract, so they register in the same
 `app.py` dicts and ride the same route (`/cost-agreements/invoice/fill`).
@@ -204,6 +207,19 @@ every agreement type, all deliberate:
   from the document's identifying fields — no clock). A numbered financial
   record must reprint the same Doc ID every time its PDF is rebuilt, or the
   footer's "Verify:" stamp means nothing.
+
+**Statement of Services** (`builders/statement_of_services.py`, from the
+firm's Word template) records services actually performed and their
+charges against payments; it is *not* an invoice and says so in fixed
+closing lines that are never accepted from the caller. Rows are
+`kind: fee | disbursement`, GST-inclusive; `from_payload` recomputes every
+total from the rows and ignores any the caller sends, and GST is extracted
+from fee rows only. Balance = total charges - payments + refunds - credits.
+The agent line is `layout.RMA_NAME` / `RMA_MARN`, a firm constant.
+
+**Invoice line items may carry `gst_free: true`** (a disbursement passed
+through at cost, e.g. the visa application charge). Derived GST comes from
+the other lines only, and on a tax invoice the line is marked "GST-free".
 
 `chrome.draw_header`'s `badge_label` / `badge_every_page` keywords exist for
 these two: the navy badge reads "TAX INVOICE" / "PAYMENT RECEIPT" on every
@@ -289,6 +305,15 @@ normalisations` / `build_invoice`) but build from `finance.py` flowables
 rather than `components.py` ones.
 
 ## Cross-cutting concerns (wired in `app.py` before routes register)
+- `pdfform/auth.py` — caller authentication on the PDF routes
+  (`/cost-agreements/*/fill`, `/forms/*/fill|extract|preview`).
+  `AUTH_MODE=off` (default) checks nothing; `AUTH_MODE=enforce` requires
+  `Authorization: Bearer <Supabase access token>` (verified against
+  `SUPABASE_URL/auth/v1/user`, cached ≤120s and never past `exp`) or
+  `X-Service-Token: $FORM956_SERVICE_TOKEN` (server-to-server, e.g. the
+  CRM's `submit-declaration` edge function). Deploy with `off`, ship the
+  CRM build that sends tokens, then flip to `enforce`. `Authorization` is in
+  the CORS `allow_headers` for this reason.
 
 - `pdfform/logging_setup.py` — JSON logs, one object per line, a
   12-char request ID bound to Flask `g` and echoed as `X-Request-Id` on

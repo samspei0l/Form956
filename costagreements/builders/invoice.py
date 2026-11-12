@@ -54,6 +54,10 @@ class InvoiceLineItem:
     quantity: float
     unit_price: float
     amount: float
+    # A disbursement passed through at cost (the Department's visa
+    # application charge, a skills-assessment fee): no GST of the firm's is
+    # in it, so GST is extracted from the *other* lines only.
+    gst_free: bool = False
 
     @classmethod
     def from_payload(cls, raw: dict) -> "InvoiceLineItem":
@@ -67,6 +71,7 @@ class InvoiceLineItem:
             # A caller that omits the extended amount gets it computed
             # rather than a zero row.
             amount=parse_amt(amount) if amount is not None else quantity * unit_price,
+            gst_free=raw.get("gst_free") is True,
         )
 
 
@@ -117,7 +122,8 @@ class InvoiceData:
         # an invoice reading $0.00.
         if payload.get("total") is None:
             total = sum(i.amount for i in line_items)
-            gst_amount = total * (gst_rate / (100 + gst_rate)) if gst_rate else 0.0
+            taxable = sum(i.amount for i in line_items if not i.gst_free)
+            gst_amount = taxable * (gst_rate / (100 + gst_rate)) if gst_rate else 0.0
             subtotal = total - gst_amount
         else:
             total = parse_amt(payload.get("total"))
@@ -209,7 +215,7 @@ def _build_story(data: InvoiceData) -> list:
     ))
     story.append(Spacer(1, 22))
 
-    story.append(F.line_items_table(data.line_items))
+    story.append(F.line_items_table(data.line_items, gst_marks=data.has_gst))
     story.append(Spacer(1, 20))
 
     totals_rows = [("Subtotal", F.money(data.subtotal))]

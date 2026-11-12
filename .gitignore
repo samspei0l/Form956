@@ -29,3 +29,13 @@ Thumbs.db
 # Runtime — generated on first request, must not be checked in
 uploads/cache/*.pdf
 !uploads/cache/.gitkeep
+
+# Secrets -- never commit keys. (An SSH key pair was committed here once;
+# it has been untracked and must be treated as compromised.)
+rajkumar
+rajkumar.pub
+*.pem
+id_rsa*
+id_ed25519*
+.env
+.env.*
