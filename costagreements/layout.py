@@ -113,6 +113,13 @@ FIRM_POSTAL_LINE = "PO Box 267, Richmond NSW 2753"
 FIRM_CONTACT_LINE = "M: 0424 010 868   |   E: chi@winzoylegal.com.au   |   W: winzoylegal.com.au"
 FIRM_ACN = "ACN 675 741 036"
 
+# The registered migration agent the Statement of Services names. A firm
+# constant rather than a payload field on purpose: the statement is a
+# Code-of-Conduct record of the agent responsible for the firm's matters,
+# and the firm's template prints this one agent on every statement.
+RMA_NAME = "Wasim Ahmad"
+RMA_MARN = "1465990"
+
 # Trust/office account the "BANK ACCOUNT DETAILS" box (components.py) and
 # the invoice's "How to Pay" panel (finance.py) both print.
 BANK_NAME = "Commonwealth Bank of Australia"

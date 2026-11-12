@@ -171,7 +171,7 @@ def how_to_pay_panel() -> Table:
 _LINE_COLS = (0.50, 0.10, 0.20, 0.20)
 
 
-def line_items_table(items: list) -> Table:
+def line_items_table(items: list, gst_marks: bool = False) -> Table:
     """The invoice's line-item ledger: a navy header row, zebra-tinted body
     rows separated by hairlines only -- no per-cell grid -- which reads as a
     ledger rather than a spreadsheet.
@@ -190,8 +190,15 @@ def line_items_table(items: list) -> Table:
         # Whole quantities print as "1", not "1.0" -- these are counts of a
         # billed item, and the fractional form reads like a rate.
         qty_text = str(int(qty)) if float(qty) == int(qty) else f"{float(qty):g}"
+        description = esc(item.description or "(no description)")
+        # A GST-free line (a disbursement such as the Department's visa
+        # application charge) is marked on the face of a tax invoice, so the
+        # reader can see which supplies the GST figure was taken from.
+        if getattr(item, "gst_free", False) and gst_marks:
+            description += (f' <font color="{L.hex_of(L.MUTED)}" size="8">'
+                            "&nbsp;&nbsp;GST-free</font>")
         data.append([
-            PT(item.description or "(no description)", L.STYLE_LINE_CELL),
+            P(description, L.STYLE_LINE_CELL),
             P(esc(qty_text), L.STYLE_LINE_CELL_RIGHT),
             P(money(item.unit_price), L.STYLE_LINE_CELL_RIGHT),
             P(money(item.amount), L.STYLE_LINE_CELL_RIGHT),
@@ -213,6 +220,92 @@ def line_items_table(items: list) -> Table:
             style.append(("BACKGROUND", (0, row), (-1, row), L.ROW_ALT))
         style.append(("LINEBELOW", (0, row), (-1, row), 0.5, L.GRAY))
     t.setStyle(TableStyle(style))
+    return t
+
+
+# Statement of Services ledger: date/stage, particulars, charge.
+_SERVICE_COLS = (0.22, 0.56, 0.22)
+
+
+def services_table(rows: list[tuple[str, str, str]], empty_text: str = "",
+                   width: float | None = None) -> Table:
+    """The Statement of Services' "Services performed and charges" ledger --
+    the same navy-header, zebra, hairline treatment as ``line_items_table``,
+    three columns instead of four. ``rows`` are pre-formatted
+    ``(date_or_stage, particulars, charge)`` strings (escaped here)."""
+    data: list[list] = [[
+        P("Date / stage", L.STYLE_LINE_HEAD),
+        P("Particulars of each service actually performed", L.STYLE_LINE_HEAD),
+        P("Charge (AUD)", L.STYLE_LINE_HEAD_RIGHT),
+    ]]
+    for when, particulars, charge in rows:
+        data.append([
+            PT(when or "—", L.STYLE_LINE_CELL),
+            P(multiline_html(particulars), L.STYLE_LINE_CELL),
+            P(esc(charge), L.STYLE_LINE_CELL_RIGHT),
+        ])
+    if not rows:
+        data.append([PT(empty_text or "—", L.STYLE_LINE_CELL), "", ""])
+
+    width = L.CONTENT_W if width is None else width
+    t = Table(data, colWidths=[width * f for f in _SERVICE_COLS], repeatRows=1)
+    style = [
+        ("BACKGROUND", (0, 0), (-1, 0), L.NAVY),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, 0), 9),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 9),
+        ("TOPPADDING", (0, 1), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
+    ]
+    if not rows:
+        style.append(("SPAN", (0, 1), (-1, 1)))
+    for row in range(1, len(data)):
+        if (row - 1) % 2 == 0:
+            style.append(("BACKGROUND", (0, row), (-1, row), L.ROW_ALT))
+        style.append(("LINEBELOW", (0, row), (-1, row), 0.5, L.GRAY))
+    t.setStyle(TableStyle(style))
+    return t
+
+
+def account_summary_card(charge_rows: list[tuple[str, str]], total_label: str, total_value: str,
+                          payment_rows: list[tuple[str, str]], balance_label: str,
+                          balance_value: str, width: float | None = None,
+                          label_frac: float = 0.5) -> Table:
+    """The Statement of Services' account summary, as one right-aligned card
+    in the totals-card family: the charge rows, a navy-ruled bold "Total
+    charges" subtotal, the payment rows, then the balance picked out on the
+    soft gold field -- the one emphasised figure on the page, as on the
+    invoice and receipt."""
+    data: list[list] = [[P(esc(a), L.STYLE_TOTALS_LABEL), P(esc(b), L.STYLE_TOTALS_VALUE)]
+                        for a, b in charge_rows]
+    total_row = len(data)
+    data.append([P(esc(total_label), L.STYLE_BALANCE_LABEL), P(esc(total_value), L.STYLE_BALANCE_VALUE)])
+    data.extend([P(esc(a), L.STYLE_TOTALS_LABEL), P(esc(b), L.STYLE_TOTALS_VALUE)]
+                for a, b in payment_rows)
+    balance_row = len(data)
+    data.append([P(esc(balance_label), L.STYLE_TOTAL_DUE_LABEL),
+                 P(esc(balance_value), L.STYLE_TOTAL_DUE_VALUE)])
+
+    width = TOTALS_BOX_W if width is None else width
+    t = Table(data, colWidths=[width * label_frac, width * (1 - label_frac)])
+    t.hAlign = "RIGHT"
+    t.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.75, L.GRAY),
+        ("LINEABOVE", (0, total_row), (-1, total_row), 0.8, L.NAVY),
+        ("LINEBELOW", (0, total_row), (-1, total_row), 0.5, L.GRAY),
+        ("LINEABOVE", (0, balance_row), (-1, balance_row), 0.8, L.NAVY),
+        ("BACKGROUND", (0, balance_row), (-1, balance_row), L.GOLD_TINT),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        *_TOTALS_PADDING,
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, total_row), (-1, total_row), 7),
+        ("BOTTOMPADDING", (0, total_row), (-1, total_row), 7),
+        ("TOPPADDING", (0, balance_row), (-1, balance_row), 9),
+        ("BOTTOMPADDING", (0, balance_row), (-1, balance_row), 9),
+    ]))
     return t
 
 

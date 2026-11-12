@@ -53,7 +53,10 @@ try:
             r"/cost-agreements/*": {"origins": _CORS_ORIGINS},
         },
         methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "X-Request-Id"],
+        # Authorization carries the CRM user's Supabase session (see
+        # pdfform/auth.py). It must be allowed here *before* the CRM starts
+        # sending it, or every preflight fails.
+        allow_headers=["Content-Type", "X-Request-Id", "Authorization"],
         expose_headers=["X-Cache-Key", "X-Cache", "X-Request-Id"],
         max_age=86400,
     )
@@ -77,6 +80,13 @@ try:
 except ImportError:
     _limiter = None
     log.warning("flask-limiter not installed; rate limiting disabled.")
+
+# --------------------------------------------------------------------- auth
+# Caller authentication for the PDF routes. AUTH_MODE=off (default) leaves
+# them open; AUTH_MODE=enforce requires a Supabase session or the service
+# token. See pdfform/auth.py for the staged rollout.
+from pdfform.auth import init_auth
+init_auth(app)
 
 # --------------------------------------------------------------------- forms
 from pdfform import engine as pdfform_engine
@@ -195,6 +205,12 @@ from costagreements.builders.declaration import (
     build_declaration,
     validate_declaration,
 )
+from costagreements.builders.statement_of_services import (
+    StatementOfServicesData,
+    apply_statement_of_services_normalisations,
+    build_statement_of_services,
+    validate_statement_of_services,
+)
 from costagreements.schema import GeneralCostAgreementData
 from costagreements.validate import apply_normalisations as apply_ca_normalisations
 from costagreements.validate import validate_general_cost_agreement
@@ -216,6 +232,7 @@ COST_AGREEMENT_BUILDERS: dict[str, callable] = {  # type: ignore[type-arg]
     "invoice": build_invoice,
     "receipt": build_receipt,
     "declaration": build_declaration,
+    "statement_of_services": build_statement_of_services,
 }
 COST_AGREEMENT_SCHEMAS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": GeneralCostAgreementData.from_payload,
@@ -234,6 +251,7 @@ COST_AGREEMENT_SCHEMAS: dict[str, callable] = {  # type: ignore[type-arg]
     "invoice": InvoiceData.from_payload,
     "receipt": ReceiptData.from_payload,
     "declaration": DeclarationData.from_payload,
+    "statement_of_services": StatementOfServicesData.from_payload,
 }
 COST_AGREEMENT_VALIDATORS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": validate_general_cost_agreement,
@@ -252,6 +270,7 @@ COST_AGREEMENT_VALIDATORS: dict[str, callable] = {  # type: ignore[type-arg]
     "invoice": validate_invoice,
     "receipt": validate_receipt,
     "declaration": validate_declaration,
+    "statement_of_services": validate_statement_of_services,
 }
 COST_AGREEMENT_NORMALISERS: dict[str, callable] = {  # type: ignore[type-arg]
     "general": apply_ca_normalisations,
@@ -270,6 +289,7 @@ COST_AGREEMENT_NORMALISERS: dict[str, callable] = {  # type: ignore[type-arg]
     "invoice": apply_invoice_normalisations,
     "receipt": apply_receipt_normalisations,
     "declaration": apply_declaration_normalisations,
+    "statement_of_services": apply_statement_of_services_normalisations,
 }
 
 
