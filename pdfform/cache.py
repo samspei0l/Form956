@@ -21,8 +21,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import time
-from typing import Any
+from functools import lru_cache
+from importlib import metadata
 
 MAX_ENTRIES = 1000
 MAX_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
@@ -44,6 +44,72 @@ MAX_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 #: signature box sat inside the band.
 CACHE_SCHEMA_VERSION = 4
 
+# --------------------------------------------------------------------- build fingerprint
+# CACHE_SCHEMA_VERSION only helps when someone remembers to bump it, and the
+# log above is four occasions where nobody did until stale PDFs had already
+# gone out. Most recently (2026-11-26) the divorce builder learned a
+# variable-length payment schedule, and a request identical to one made
+# before the deploy kept getting the old three-row PDF back from the
+# persistent cache volume.
+#
+# So the key is also salted with a fingerprint of everything that decides
+# what a PDF looks like: the source of every builder and the fill engine,
+# the form YAMLs, the template PDFs, the brand assets, and the versions of
+# the two PDF libraries. Any deploy that changes one of them starts on a
+# fresh key space automatically; a deploy that changes nothing else (docs,
+# tests, CI) keeps its cache warm. Old entries are never deleted by hand:
+# they become unreachable and age out through the normal LRU eviction.
+#
+# Content, not mtimes or a git SHA: mtimes change on every checkout, and a
+# git SHA changes on README edits. CACHE_SCHEMA_VERSION stays as the manual
+# override for anything this can't see (e.g. a system font change).
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FINGERPRINT_SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("pdfform", (".py",)),
+    ("costagreements", (".py", ".png", ".jpg", ".jpeg", ".ttf", ".otf")),
+    ("forms", (".yaml", ".yml")),
+    ("pdfs", (".pdf",)),
+)
+FINGERPRINT_LIBRARIES = ("reportlab", "pymupdf")
+
+
+def compute_build_fingerprint(root: str = _ROOT,
+                              sources=FINGERPRINT_SOURCES,
+                              libraries=FINGERPRINT_LIBRARIES) -> str:
+    """SHA-256 over the relative path + bytes of every output-shaping file
+    under ``root`` (sorted, so the walk order can't change it), plus the
+    installed versions of ``libraries``. Line endings are normalised so a
+    Windows checkout and the Linux container agree."""
+    h = hashlib.sha256()
+    for sub, exts in sources:
+        base = os.path.join(root, sub)
+        files = []
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = sorted(d for d in dirnames if d != "__pycache__")
+            for fn in filenames:
+                if fn.lower().endswith(exts):
+                    files.append(os.path.join(dirpath, fn))
+        for path in sorted(files):
+            rel = os.path.relpath(path, root).replace(os.sep, "/")
+            with open(path, "rb") as f:
+                data = f.read()
+            if rel.endswith((".py", ".yaml", ".yml")):
+                data = data.replace(b"\r\n", b"\n")
+            h.update(rel.encode("utf-8") + b"\0" + hashlib.sha256(data).digest())
+    for lib in libraries:
+        try:
+            version = metadata.version(lib)
+        except metadata.PackageNotFoundError:
+            version = "absent"
+        h.update(f"{lib}={version}\0".encode("utf-8"))
+    return h.hexdigest()
+
+
+@lru_cache(maxsize=1)
+def build_fingerprint() -> str:
+    """The running build's fingerprint, computed once per process."""
+    return compute_build_fingerprint()
+
 
 def canonicalise(payload: dict) -> str:
     """Stable, deterministic JSON for hashing.
@@ -60,8 +126,9 @@ def canonicalise(payload: dict) -> str:
 
 def cache_key(payload: dict) -> str:
     """SHA-256 hex of the canonicalised payload, salted with the cache
-    schema version (see ``CACHE_SCHEMA_VERSION``)."""
-    salted = f"{CACHE_SCHEMA_VERSION}:{canonicalise(payload)}"
+    schema version and the build fingerprint (see above), so a PDF built
+    by older code is never served after a deploy that changes the output."""
+    salted = f"{CACHE_SCHEMA_VERSION}:{build_fingerprint()}:{canonicalise(payload)}"
     return hashlib.sha256(salted.encode("utf-8")).hexdigest()
 
 

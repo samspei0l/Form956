@@ -90,7 +90,7 @@ init_auth(app)
 
 # --------------------------------------------------------------------- forms
 from pdfform import engine as pdfform_engine
-from pdfform.cache import PdfCache, cache_key
+from pdfform.cache import CACHE_SCHEMA_VERSION, PdfCache, build_fingerprint, cache_key
 from pdfform.schema import ConfigError
 
 FORMS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "forms")
@@ -104,6 +104,9 @@ _BASE_UPLOADS = os.environ.get("UPLOADS_DIR") or os.path.join(
 )
 CACHE_DIR = os.path.join(_BASE_UPLOADS, "cache")
 CACHE = PdfCache(CACHE_DIR)
+# Computed once here (~0.5s of hashing) rather than on the first fill, and
+# logged so each deploy's build is identifiable in the logs.
+log.info("build fingerprint", extra={"build": build_fingerprint()[:12]})
 
 # --------------------------------------------------------------------- validators
 # Per-form validator registry. Add a sibling module + register it here
@@ -538,6 +541,11 @@ def health():
         "forms_loaded": len(ENGINES),
         "forms": sorted(ENGINES.keys()),
         "cost_agreement_types": sorted(COST_AGREEMENT_BUILDERS.keys()),
+        # Which build is answering: changes whenever a deploy changes what a
+        # PDF looks like (see pdfform/cache.py). Lets a deploy be confirmed
+        # from outside without generating a document.
+        "build": build_fingerprint()[:12],
+        "cache_schema": CACHE_SCHEMA_VERSION,
         **CACHE.stats(),
     })
 
