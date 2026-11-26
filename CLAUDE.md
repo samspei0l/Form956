@@ -107,7 +107,16 @@ exposes each as `/forms/<id>`.
    payload (sorted keys, `None` values stripped). Cache hit returns the
    stored PDF immediately; miss falls through to the engine fill and is
    written to `uploads/cache/<key>.pdf`. Bounded to 1000 entries / 2 GB,
-   oldest-by-mtime evicted first.
+   oldest-by-mtime evicted first. The key is also salted with a **build
+   fingerprint**: a hash of every file that shapes a PDF (`pdfform/`,
+   `costagreements/` incl. assets, `forms/`, `pdfs/`) plus the reportlab and
+   pymupdf versions. The cache directory is a persistent volume, so without
+   this a request identical to one made before a deploy got the old build's
+   PDF back. Any output-changing deploy now starts on a fresh key space with
+   nothing to bump; docs/tests-only deploys keep the cache warm.
+   `CACHE_SCHEMA_VERSION` remains as a manual override for what the
+   fingerprint can't see. `/health` reports `build` (first 12 hex chars) so a
+   deploy can be confirmed from outside.
 6. **Engine fill** (`pdfform/engine.py` `FormEngine.fill`) — opens the PDF
    once, writes every mapped widget, saves to the cache path. A missing
    widget or invalid radio value raises `ConfigError`, mapped to `422`
