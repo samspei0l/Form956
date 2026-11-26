@@ -38,6 +38,17 @@ Annexure D -- no Annexure A/B/C, matching the TS source only importing
    source's own comment calls this a deliberate "ponytail": mismatched
    custom splits are silently corrected rather than raising, since a
    staff UI is expected to warn separately.
+
+   **Any number of rows** (the form's "Add row", as on the Partner Visa
+   agreement): when ``payment_schedule_items`` is sent -- a list of
+   ``{description, amount}`` -- it replaces the three fixed instalments.
+   Descriptions print verbatim (the firm's labels already read "1st
+   Instalment -- ..."), rows with neither description nor amount are
+   dropped, and the same rule applies to the amounts: used as typed if
+   they are all numeric and sum to the professional fee, otherwise the fee
+   is split evenly across the rows. No rows at all prints the full-payment
+   box. Payloads without the field (drafts saved before it existed) keep
+   the fixed three-instalment table.
 3. **The "estimate cost" paragraph** draws from ``data.total_cost``
    verbatim (``$${fmtAmt(data.totalCost || '')}``), exactly like BFA's
    equivalent paragraph -- *not* the same figure as the separately
@@ -169,6 +180,8 @@ class DivorceCostAgreementData:
     instalment1_amount: str = ""
     instalment2_amount: str = ""
     instalment3_amount: str = ""
+    # Any-number-of-rows schedule; None = legacy fixed three instalments.
+    payment_schedule_items: list[dict] | None = None
 
     # Signature block
     marn: str = ""
@@ -211,6 +224,7 @@ class DivorceCostAgreementData:
             instalment1_amount=str(payload.get("instalment1_amount") or ""),
             instalment2_amount=str(payload.get("instalment2_amount") or ""),
             instalment3_amount=str(payload.get("instalment3_amount") or ""),
+            payment_schedule_items=_schedule_items_from_payload(payload.get("payment_schedule_items")),
             marn=str(payload.get("marn") or ""),
             lpn=str(payload.get("lpn") or ""),
             rep_signature_data=payload.get("rep_signature_data") or None,
@@ -224,7 +238,19 @@ class DivorceCostAgreementData:
         )
 
 
+def _schedule_items_from_payload(raw) -> list[dict] | None:
+    if not isinstance(raw, list):
+        return None
+    return [
+        {"description": str(item.get("description") or ""), "amount": str(item.get("amount") or "")}
+        for item in raw
+        if isinstance(item, dict)
+    ]
+
+
 # --------------------------------------------------------------------- validation
+MAX_PAYMENT_SCHEDULE_ITEMS = 50
+
 REQUIRED_FIELDS = frozenset({
     "date", "our_ref", "client_name", "client_address", "capacity",
     "professional_fee", "estimated_days", "service_fee",
@@ -278,6 +304,33 @@ def validate_divorce_cost_agreement(payload: dict) -> list[ValidationError]:
             continue
         if parse_amt(v) < 0:
             errs.append(ValidationError(field=f, code="value", message=f"{f!r} must not be negative"))
+
+    schedule = payload.get("payment_schedule_items")
+    if schedule is not None:
+        if not isinstance(schedule, list):
+            errs.append(ValidationError(
+                field="payment_schedule_items", code="shape",
+                message="'payment_schedule_items' must be a list of {description, amount} objects",
+            ))
+        elif len(schedule) > MAX_PAYMENT_SCHEDULE_ITEMS:
+            errs.append(ValidationError(
+                field="payment_schedule_items", code="value",
+                message=f"'payment_schedule_items' allows at most {MAX_PAYMENT_SCHEDULE_ITEMS} rows",
+            ))
+        else:
+            for i, item in enumerate(schedule):
+                if not isinstance(item, dict):
+                    errs.append(ValidationError(
+                        field="payment_schedule_items", code="shape",
+                        message=f"payment_schedule_items[{i}] must be an object",
+                    ))
+                    continue
+                amt = item.get("amount")
+                if amt not in (None, "") and parse_amt(amt) < 0:
+                    errs.append(ValidationError(
+                        field="payment_schedule_items", code="value",
+                        message=f"payment_schedule_items[{i}].amount must not be negative",
+                    ))
 
     for f in IMAGE_FIELDS:
         v = payload.get(f)
@@ -388,6 +441,35 @@ def _compute_instalments(pf: float, a1: str, a2: str, a3: str) -> tuple[float, f
         even = _round2(pf / 3)
         return even, even, _round2(pf - even * 2)
     return a, b, c
+
+
+def _schedule_rows(items: list[dict], pf: float) -> list[tuple[str, str]]:
+    """Rows for the any-number-of-rows schedule. Same rule as
+    ``_compute_instalments`` generalised to N rows: amounts are used as
+    typed only if every row has a numeric amount and they sum to the
+    professional fee (within 1 cent); otherwise the fee is split evenly,
+    the last row taking the rounding remainder, so the table always adds
+    up to the fee printed above it."""
+    kept = [
+        ((it.get("description") or "").strip(), (it.get("amount") or "").strip())
+        for it in items
+    ]
+    kept = [(d, a) for d, a in kept if d or a]
+    if not kept:
+        return []
+
+    def _to_float(v: str) -> float | None:
+        try:
+            return float(v.replace(",", ""))
+        except (TypeError, ValueError):
+            return None
+
+    amounts = [_to_float(a) for _, a in kept]
+    if any(a is None for a in amounts) or abs(sum(amounts) - pf) > 0.01:  # type: ignore[arg-type]
+        n = len(kept)
+        even = _round2(pf / n)
+        amounts = [even] * (n - 1) + [_round2(pf - even * (n - 1))]
+    return [(d or f"Instalment {i + 1}", f"${fmt_amt(a)}") for i, ((d, _), a) in enumerate(zip(kept, amounts))]
 
 
 def _instalment_table(stages: list[tuple[str, str]]) -> Table:
@@ -520,17 +602,26 @@ def _build_story(data: DivorceCostAgreementData, today_short: str) -> list:
     story.append(Spacer(1, 14))
 
     # ── Payment schedule ───────────────────────────────
-    heading_text = "PAYMENT SCHEDULE" if data.hide_payment_schedule else "PAYMENT SCHEDULE FOR COST AND DISBURSEMENT"
+    professional_fee_num = parse_amt(data.professional_fee)
+    schedule_rows = (
+        _schedule_rows(data.payment_schedule_items, professional_fee_num)
+        if data.payment_schedule_items is not None else None
+    )
+    # Every row removed in the form = nothing left to schedule: the fee is
+    # payable in one go, the same as ticking "Client pays in full".
+    pays_in_full = data.hide_payment_schedule or schedule_rows == []
+    heading_text = "PAYMENT SCHEDULE" if pays_in_full else "PAYMENT SCHEDULE FOR COST AND DISBURSEMENT"
     story.append(P(heading_text, L.STYLE_H2))
     story.append(Spacer(1, 6))
-
-    professional_fee_num = parse_amt(data.professional_fee)
-    if data.hide_payment_schedule:
+    if pays_in_full:
         full_pay_text = (
             f"Full payment of ${fmt_amt(professional_fee_num)} (incl GST) is payable "
             "in full at the time file is ready for submission."
         )
         story.append(_full_pay_box(full_pay_text))
+        story.append(Spacer(1, 12))
+    elif schedule_rows:
+        story.append(_instalment_table(schedule_rows))
         story.append(Spacer(1, 12))
     else:
         amt1, amt2, amt3 = _compute_instalments(
